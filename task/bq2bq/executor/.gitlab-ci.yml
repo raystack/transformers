@@ -1,0 +1,28 @@
+stages:
+  - test
+  - publish
+
+before_script:
+  - export IMAGE_TAG="${CI_COMMIT_TAG:-$CI_COMMIT_SHA}"
+
+test:
+  stage: test
+  image: "python:3.8-alpine"
+  coverage: '/coverage \d+%/'
+  script:
+    - apk add build-base
+    - pip install -r requirements-test.txt
+    - coverage run setup.py test
+    - echo "coverage $(coverage report | awk '{print $6}' | tail -n 1)"
+    - coverage report
+
+publish:
+  stage: publish
+  script:
+    - export IMAGE="de-${CI_PROJECT_NAME}"
+    - export ARTIFACTORY_IMAGE="docker.io/odpf/${IMAGE}"
+    - docker build -t ${ARTIFACTORY_IMAGE}:${IMAGE_TAG} -t ${ARTIFACTORY_IMAGE}:latest .
+    - docker push ${ARTIFACTORY_IMAGE}:${IMAGE_TAG}
+    - docker push ${ARTIFACTORY_IMAGE}:latest
+  tags:
+    - package

@@ -1,0 +1,1 @@
+DROP TABLE `__destination_table__`

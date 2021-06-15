@@ -1,0 +1,27 @@
+name: test
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  executor_bq2bq:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+      - name: test executer
+        run: |
+          cd ./task/bq2bq/executor
+          chmod +x ./run_coverage.sh
+          ./run_coverage.sh

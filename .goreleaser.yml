@@ -1,0 +1,71 @@
+before:
+  hooks:
+    - make test
+builds:
+  - dir: ./task/bq2bq
+    main: .
+    id: "bq2bq"
+    binary: "optimus-task-bq2bq_{{.Version}}_{{.Os}}_{{.Arch}}"
+    ldflags:
+      - -s -w -X main.Version={{.Version}} -X main.Image=docker.io/odpf/optimus-task-bq2bq
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+archives:
+  - replacements:
+      darwin: macos
+      linux: linux
+      windows: windows
+      386: i386
+      amd64: x86_64
+    format_overrides:
+      - goos: windows
+        format: zip
+release:
+  prerelease: auto
+  draft: true
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+
+dockers:
+  -
+    goos: linux
+    goarch: amd64
+    image_templates:
+    - "docker.io/odpf/optimus-task-bq2bq:latest"
+    - "docker.io/odpf/optimus-task-bq2bq:{{ .Version }}"
+    dockerfile: ./task/bq2bq/Dockerfile
+    extra_files:
+    - ./entrypoint.sh
+    build_flag_templates:
+    - "--build-arg=OPTIMUS_RELEASE_URL=https://github.com/odpf/optimus/releases/download/v0.0.1/optimus_0.0.1_linux_x86_64.tar.gz"
+
+brews:
+  - name: optimus-plugins-odpf
+    tap:
+      owner: odpf
+      name: taps
+    license: "Apache 2.0"
+    folder: Formula
+    description: "Optimus Plugins for warehouse"
+    dependencies:
+      - odpf/taps/optimus
+    commit_author:
+      name: Kush Sharma
+      email: thekushsharma@gmail.com
+    install: |
+      bin.install Dir["optimus-*"]
