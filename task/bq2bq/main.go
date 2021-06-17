@@ -344,8 +344,6 @@ func (b *BQ2BQ) GenerateTaskDependencies(ctx context.Context, request models.Gen
 		return models.GenerateTaskDependenciesResponse{}, err
 	}
 
-	// TODO(kush.sharma): should we ask context as input? Not sure if its okay
-	// for the task to allow handling there own timeouts/deadlines
 	timeoutCtx, cancel := context.WithTimeout(ctx, TimeoutDuration)
 	defer cancel()
 
@@ -358,6 +356,13 @@ func (b *BQ2BQ) GenerateTaskDependencies(ctx context.Context, request models.Gen
 	if !ok {
 		return models.GenerateTaskDependenciesResponse{}, errors.New("empty sql file")
 	}
+
+	// first parse sql statement to find dependencies and ignored tables
+	parsedDependencies, ignoredDependencies, err := b.FindDependenciesWithRegex(ctx, request)
+	if err != nil {
+		return response, err
+	}
+
 	// try to resolve referenced tables directly from BQ APIs
 	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(timeoutCtx, queryData.Value, svcAcc)
 	if err != nil {
@@ -365,12 +370,8 @@ func (b *BQ2BQ) GenerateTaskDependencies(ctx context.Context, request models.Gen
 	}
 
 	if len(response.Dependencies) == 0 {
-		// could be BQ script, find table names using regex and create
+		// stmt could be BQ script, find table names using regex and create
 		// fake Select STMTs to find actual referenced tables
-		parsedDependencies, err := b.FindDependenciesWithRegex(ctx, request)
-		if err != nil {
-			return response, err
-		}
 
 		resultChan := make(chan []string)
 		eg, apiCtx := errgroup.WithContext(timeoutCtx) // it will stop executing further after first error
@@ -420,8 +421,13 @@ func (b *BQ2BQ) GenerateTaskDependencies(ctx context.Context, request models.Gen
 		return response, err
 	}
 	response.Dependencies = removeString(response.Dependencies, selfTable.Destination)
-	b.Cache(request, response)
 
+	// before returning remove ignored tables
+	for _, ignored := range ignoredDependencies {
+		response.Dependencies = removeString(response.Dependencies, ignored)
+	}
+
+	b.Cache(request, response)
 	return response, nil
 }
 
@@ -448,15 +454,16 @@ func (b *BQ2BQ) GenerateTaskDependencies(ctx context.Context, request models.Gen
 // they're a single sequence of characters. But on the other hand
 // this also means that otherwise valid reference to "dataset.table"
 // will not be recognised.
-func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, request models.GenerateTaskDependenciesRequest) ([]string, error) {
+func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, request models.GenerateTaskDependenciesRequest) ([]string, []string, error) {
 
 	queryData, ok := request.Assets.Get(QueryFileName)
 	if !ok {
-		return nil, errors.New("empty sql file")
+		return nil, nil, errors.New("empty sql file")
 	}
 	queryString := queryData.Value
 	tablesFound := make(map[string]bool)
 	pseudoTables := make(map[string]bool)
+	var tablesIgnored []string
 
 	// we mark destination as a pseudo table to avoid a dependency
 	// cycle. This is for supporting DML queries that may also refer
@@ -467,7 +474,7 @@ func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, request models.Ge
 		Project: request.Project,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	pseudoTables[dest.Destination] = true
 
@@ -500,12 +507,16 @@ func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, request models.Ge
 			ignoreUpstreamIdx, projectIdx, datasetIdx, nameIdx = 9, 10, 11, 12
 		}
 
+		tableName := createTableName(match[projectIdx], match[datasetIdx], match[nameIdx])
+
 		// if upstream is ignored, don't treat it as source
 		if strings.TrimSpace(match[ignoreUpstreamIdx]) == "@ignoreupstream" {
+			// make sure to handle both the conventions
+			tablesIgnored = append(tablesIgnored, tableName)
+			tablesIgnored = append(tablesIgnored, createTableNameWithColon(match[projectIdx], match[datasetIdx], match[nameIdx]))
 			continue
 		}
 
-		tableName := createTableName(match[projectIdx], match[datasetIdx], match[nameIdx])
 		if clause == "with" {
 			pseudoTables[tableName] = true
 		} else {
@@ -519,7 +530,7 @@ func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, request models.Ge
 		}
 		tables = append(tables, table)
 	}
-	return tables, nil
+	return tables, tablesIgnored, nil
 }
 
 func (b *BQ2BQ) FindDependenciesWithRetryableDryRun(ctx context.Context, query, svcAccSecret string) ([]string, error) {
@@ -578,6 +589,10 @@ func (b *BQ2BQ) FindDependenciesWithDryRun(ctx context.Context, client bqiface.C
 
 func createTableName(proj, dataset, table string) string {
 	return fmt.Sprintf("%s.%s.%s", proj, dataset, table)
+}
+
+func createTableNameWithColon(proj, dataset, table string) string {
+	return fmt.Sprintf("%s:%s.%s", proj, dataset, table)
 }
 
 func deduplicateStrings(in []string) []string {

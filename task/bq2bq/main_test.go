@@ -195,91 +195,109 @@ func TestBQ2BQ(t *testing.T) {
 				Name    string
 				Query   string
 				Sources set
+				Ignored set
 			}{
 				{
 					Name:    "simple query",
 					Query:   "select * from data-engineering.testing.table1",
 					Sources: newSet("data-engineering.testing.table1"),
+					Ignored: newSet(),
 				},
 				{
 					Name:    "simple query with quotes",
 					Query:   "select * from `data-engineering.testing.table1`",
 					Sources: newSet("data-engineering.testing.table1"),
+					Ignored: newSet(),
 				},
 				{
 					Name:    "simple query without project name",
 					Query:   "select * from testing.table1",
 					Sources: newSet(),
+					Ignored: newSet(),
 				},
 				{
 					Name:    "simple query with simple join",
 					Query:   "select * from data-engineering.testing.table1 join data-engineering.testing.table2 on some_field",
 					Sources: newSet("data-engineering.testing.table1", "data-engineering.testing.table2"),
+					Ignored: newSet(),
 				},
 				{
 					Name:    "simple query with outer join",
 					Query:   "select * from data-engineering.testing.table1 outer join data-engineering.testing.table2 on some_field",
 					Sources: newSet("data-engineering.testing.table1", "data-engineering.testing.table2"),
+					Ignored: newSet(),
 				},
 				{
 					Name:    "subquery",
 					Query:   "select * from (select order_id from data-engineering.testing.orders)",
 					Sources: newSet("data-engineering.testing.orders"),
+					Ignored: newSet(),
 				},
 				{
 					Name:    "`with` clause + simple query",
 					Query:   "with `information.foo.bar` as (select * from `data-engineering.testing.data`) select * from `information.foo.bar`",
 					Sources: newSet("data-engineering.testing.data"),
+					Ignored: newSet(),
 				},
 				{
 					Name:    "`with` clause with missing project name",
 					Query:   "with `foo.bar` as (select * from `data-engineering.testing.data`) select * from `foo.bar`",
 					Sources: newSet("data-engineering.testing.data"),
+					Ignored: newSet(),
 				},
 				{
 					Name:    "project name with dashes",
 					Query:   "select * from `foo-bar.baz.data`",
 					Sources: newSet("foo-bar.baz.data"),
+					Ignored: newSet(),
 				},
 				{
 					Name:    "dataset and project name with dashes",
 					Query:   "select * from `foo-bar.bar-baz.data",
 					Sources: newSet("foo-bar.bar-baz.data"),
+					Ignored: newSet(),
 				},
 				{
 					Name:    "`with` clause + join",
 					Query:   "with dedup_source as (select * from `project.fire.fly`) select * from dedup_source join `project.maximum.overdrive` on dedup_source.left = `project.maximum.overdrive`.right",
 					Sources: newSet("project.fire.fly", "project.maximum.overdrive"),
+					Ignored: newSet(),
 				},
 				{
 					Name:    "double `with` + pseudoreference",
 					Query:   "with s1 as (select * from internal.pseudo.ref), with internal.pseudo.ref as (select * from `project.another.name`) select * from s1",
 					Sources: newSet("project.another.name"),
+					Ignored: newSet(),
 				},
 				{
 					Name:    "simple query that ignores from upstream",
 					Query:   "select * from /* @ignoreupstream */ data-engineering.testing.table1",
 					Sources: newSet(),
+					Ignored: newSet("data-engineering.testing.table1", "data-engineering:testing.table1"),
 				},
 				{
 					Name:    "simple query that ignores from upstream with quotes",
 					Query:   "select * from /* @ignoreupstream */ `data-engineering.testing.table1`",
 					Sources: newSet(),
+					Ignored: newSet("data-engineering.testing.table1", "data-engineering:testing.table1"),
 				},
 				{
 					Name:    "simple query with simple join that ignores from upstream",
 					Query:   "select * from /* @ignoreupstream */ data-engineering.testing.table1 join data-engineering.testing.table2 on some_field",
 					Sources: newSet("data-engineering.testing.table2"),
+					Ignored: newSet("data-engineering.testing.table1", "data-engineering:testing.table1"),
 				},
 				{
 					Name:    "simple query with simple join that has comments but does not ignores upstream",
 					Query:   "select * from /*  */ data-engineering.testing.table1 join data-engineering.testing.table2 on some_field",
 					Sources: newSet("data-engineering.testing.table1", "data-engineering.testing.table2"),
+					Ignored: newSet(),
 				},
 				{
 					Name:    "simple query with simple join that ignores upstream of join",
 					Query:   "select * from data-engineering.testing.table1 join /* @ignoreupstream */ data-engineering.testing.table2 on some_field",
 					Sources: newSet("data-engineering.testing.table1"),
+					Ignored: newSet("data-engineering.testing.table2", "data-engineering:testing.table2"),
 				},
 				{
 					Name: "simple query with an ignoreupstream for an alias should still consider it as dependency",
@@ -290,6 +308,7 @@ func TestBQ2BQ(t *testing.T) {
 						SELECT id FROM /* @ignoreupstream */ my_temp_table
 						`,
 					Sources: newSet("data-engineering.testing.an_upstream_table"),
+					Ignored: newSet(),
 				},
 				{
 					Name: "simple query should have alias in the actual name rather than with alias",
@@ -300,11 +319,13 @@ func TestBQ2BQ(t *testing.T) {
 						SELECT id FROM my_temp_table
 						`,
 					Sources: newSet(),
+					Ignored: newSet("data-engineering.testing.an_upstream_table", "data-engineering:testing.an_upstream_table"),
 				},
 				{
 					Name:    "simple query with simple join that ignores upstream of join",
 					Query:   "WITH my_temp_table AS ( SELECT id, name FROM /* @ignoreupstream */ data-engineering.testing.an_upstream_table ) SELECT id FROM /* @ignoreupstream */ my_temp_table",
 					Sources: newSet(),
+					Ignored: newSet("data-engineering.testing.an_upstream_table", "data-engineering:testing.an_upstream_table"),
 				},
 				{
 					Name: "simple query with another query inside comment",
@@ -313,6 +334,7 @@ func TestBQ2BQ(t *testing.T) {
 						-- select * from data-engineering.testing.table1 join data-engineering.testing.table2 on some_field
 						`,
 					Sources: newSet("data-engineering.testing.tableABC"),
+					Ignored: newSet(),
 				},
 				{
 					Name: "query with another query inside comment and a join that uses helper",
@@ -322,6 +344,7 @@ func TestBQ2BQ(t *testing.T) {
 						join /* @ignoreupstream */ data-engineering.testing.table2 on some_field
 						`,
 					Sources: newSet("data-engineering.testing.tableABC"),
+					Ignored: newSet("data-engineering.testing.table2", "data-engineering:testing.table2"),
 				},
 			}
 
@@ -350,9 +373,10 @@ func TestBQ2BQ(t *testing.T) {
 						}),
 					}
 					b2b := &BQ2BQ{}
-					deps, err := b2b.FindDependenciesWithRegex(context.Background(), data)
+					deps, ignored, err := b2b.FindDependenciesWithRegex(context.Background(), data)
 					assert.Nil(t, err)
 					assert.Equal(t, test.Sources, newSet(deps...))
+					assert.Equal(t, test.Ignored, newSet(ignored...))
 				})
 			}
 		})
@@ -478,6 +502,80 @@ func TestBQ2BQ(t *testing.T) {
 					{
 						Name:  QueryFileName,
 						Value: "Select * from proj.dataset.table1",
+					},
+				})),
+				Config: models.TaskPluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+					{
+						Name:  "PROJECT",
+						Value: "proj",
+					},
+					{
+						Name:  "DATASET",
+						Value: "datas",
+					},
+					{
+						Name:  "TABLE",
+						Value: "tab",
+					},
+				}),
+				Project: models.ProjectSpec{Secret: models.ProjectSecrets{
+					{
+						Name:  SecretName,
+						Value: "some_secret",
+					},
+				}},
+			}
+
+			job := new(bqJob)
+			job.On("LastStatus").Return(&bigquery.JobStatus{
+				Errors: nil,
+				Statistics: &bigquery.JobStatistics{
+					Details: &bigquery.QueryStatistics{
+						ReferencedTables: []*bigquery.Table{
+							{
+								ProjectID: "proj",
+								DatasetID: "dataset",
+								TableID:   "table1",
+							},
+						},
+					},
+				},
+			})
+			defer job.AssertExpectations(t)
+
+			qry := new(bqQuery)
+			qry.On("Run", mock.Anything).Return(job, nil)
+			qry.On("SetQueryConfig", mock.AnythingOfType("bqiface.QueryConfig")).Once()
+			defer qry.AssertExpectations(t)
+
+			client := new(bqClientMock)
+			qf, _ := data.Assets.Get(QueryFileName)
+			client.On("Query", qf.Value).Return(qry)
+			defer client.AssertExpectations(t)
+
+			bqClientFac := new(bqClientFactoryMock)
+			bqClientFac.On("New", mock.Anything, "some_secret").Return(client, nil)
+			defer bqClientFac.AssertExpectations(t)
+
+			b := &BQ2BQ{
+				ClientFac: bqClientFac,
+			}
+			got, err := b.GenerateTaskDependencies(context.Background(), data)
+			if err != nil {
+				t.Errorf("error = %v", err)
+				return
+			}
+			if !reflect.DeepEqual(got.Dependencies, expectedDeps) {
+				t.Errorf("got = %v, want %v", got, expectedDeps)
+			}
+		})
+		t.Run("should generate dependencies using BQ APIs for select statements but ignore if asked explicitly", func(t *testing.T) {
+			expectedDeps := []string{}
+			data := models.GenerateTaskDependenciesRequest{
+				Assets: models.TaskPluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+					{
+						Name:  QueryFileName,
+						Value: "Select * from /* @ignoreupstream */ proj.dataset.table1",
 					},
 				})),
 				Config: models.TaskPluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
