@@ -178,8 +178,8 @@ func findAnswerByName(name string, answers []models.PluginAnswer) (models.Plugin
 
 func (b *BQ2BQ) DefaultTaskConfig(ctx context.Context, request models.DefaultTaskConfigRequest) (models.DefaultTaskConfigResponse, error) {
 	proj, _ := findAnswerByName("Project", request.Answers)
-	dataset, _ := findAnswerByName("Table", request.Answers)
-	tab, _ := findAnswerByName("Dataset", request.Answers)
+	dataset, _ := findAnswerByName("Dataset", request.Answers)
+	tab, _ := findAnswerByName("Table", request.Answers)
 	lm, _ := findAnswerByName("LoadMethod", request.Answers)
 
 	conf := []models.TaskPluginConfig{
