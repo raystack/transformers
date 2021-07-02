@@ -3,8 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/hashicorp/go-hclog"
+	"os"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -86,6 +87,8 @@ type BQ2BQ struct {
 	mu             sync.Mutex
 	C              *cache.Cache
 	TemplateEngine models.TemplateEngine
+
+	logger hclog.Logger
 }
 
 func (b *BQ2BQ) GetTaskSchema(ctx context.Context, req models.GetTaskSchemaRequest) (models.GetTaskSchemaResponse, error) {
@@ -98,21 +101,41 @@ func (b *BQ2BQ) GetTaskSchema(ctx context.Context, req models.GetTaskSchemaReque
 }
 
 func (b *BQ2BQ) GetTaskQuestions(ctx context.Context, req models.GetTaskQuestionsRequest) (models.GetTaskQuestionsResponse, error) {
+
+	// generate defaults
+	tableDefault := ""
+	datasetDefault := ""
+	projectDefault := ""
+	nameParts := strings.Split(req.JobName, ".")
+	namePartsLen := len(nameParts)
+	if namePartsLen >= 1 {
+		tableDefault = nameParts[namePartsLen-1]
+	}
+	if namePartsLen >= 2 {
+		datasetDefault = nameParts[namePartsLen-2]
+	}
+	if namePartsLen >= 3 {
+		projectDefault = nameParts[namePartsLen-3]
+	}
+
 	tQues := []models.PluginQuestion{
 		{
 			Name:   "Project",
 			Prompt: "Project ID",
 			Help:   "Bigquery Project ID",
+			Default: projectDefault,
 		},
 		{
 			Name:   "Dataset",
 			Prompt: "Dataset Name",
 			Help:   "Bigquery Dataset ID",
+			Default: datasetDefault,
 		},
 		{
 			Name:   "Table",
 			Prompt: "Table ID",
 			Help:   "Bigquery Table ID",
+			Default: tableDefault,
 		},
 		{
 			Name:   "LoadMethod",
@@ -124,17 +147,21 @@ APPEND        - Append to existing table
 REPLACE_MERGE - [Experimental] Advanced replace using merge query
 `,
 			Multiselect:         []string{LoadMethodReplace, LoadMethodMerge, LoadMethodAppend, LoadMethodReplaceMerge},
-			SubQuestionsIfValue: LoadMethodReplaceMerge,
-			SubQuestions: []models.PluginQuestion{
+			SubQuestions: []models.PluginSubQuestion{
 				{
-					Name:   "PartitionFilter",
-					Prompt: "Partition filter expression",
-					Help: `
+					IfValue:   LoadMethodReplaceMerge,
+					Questions: []models.PluginQuestion{
+						{
+							Name:   "PartitionFilter",
+							Prompt: "Partition filter expression",
+							Help: `
 Where condition over partitioned column used to delete existing partitions
 in destination table. These partitions will be replaced with sql query result.
 Leave empty for optimus to automatically figure this out although it will be 
 faster and cheaper to provide the exact condition.
 for example: DATE(event_timestamp) >= "{{ .DSTART|Date }}" AND DATE(event_timestamp) < "{{ .DEND|Date }}"`,
+						},
+					},
 				},
 			},
 		},
@@ -595,26 +622,6 @@ func createTableNameWithColon(proj, dataset, table string) string {
 	return fmt.Sprintf("%s:%s.%s", proj, dataset, table)
 }
 
-func deduplicateStrings(in []string) []string {
-	if len(in) == 0 {
-		return in
-	}
-
-	sort.Strings(in)
-	j := 0
-	for i := 1; i < len(in); i++ {
-		if in[j] == in[i] {
-			continue
-		}
-		j++
-		// preserve the original data
-		// in[i], in[j] = in[j], in[i]
-		// only set what is required
-		in[j] = in[i]
-	}
-	return in[:j+1]
-}
-
 func removeString(s []string, match string) []string {
 	if len(s) == 0 {
 		return s
@@ -671,6 +678,11 @@ func main() {
 		ClientFac:      &DefaultBQClientFactory{},
 		C:              cache.New(CacheTTL, CacheCleanUp),
 		TemplateEngine: instance.NewGoEngine(),
+		logger: hclog.New(&hclog.LoggerOptions{
+			Level:      hclog.Trace,
+			Output:     os.Stderr,
+			JSONFormat: true,
+		}),
 	}
 
 	var handshakeConfig = hplugin.HandshakeConfig{
@@ -686,4 +698,5 @@ func main() {
 		// A non-nil value here enables gRPC serving for this plugin...
 		GRPCServer: hplugin.DefaultGRPCServer,
 	})
+
 }

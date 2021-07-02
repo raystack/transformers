@@ -120,6 +120,8 @@ github.com/docker/distribution v2.7.1+incompatible/go.mod h1:J2gT2udsDAN96Uj4Kfc
 github.com/docker/docker v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
 github.com/docker/go-connections v0.4.0/go.mod h1:Gbd7IOopHjR8Iph03tsViu4nIes5XhDvyHbTtUxmeec=
 github.com/docker/go-units v0.4.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
+github.com/dustinkirkland/golang-petname v0.0.0-20191129215211-8e5a1ed0cff0 h1:90Ly+6UfUypEF6vvvW5rQIv9opIL8CbmW9FT20LDQoY=
+github.com/dustinkirkland/golang-petname v0.0.0-20191129215211-8e5a1ed0cff0/go.mod h1:V+Qd57rJe8gd4eiGzZyg4h54VLHmYVVw54iMnlAMrF8=
 github.com/eapache/go-xerial-snappy v0.0.0-20180814174437-776d5712da21 h1:YEetp8/yCZMuEPMUDHG0CW/brkkEp8mzqk2+ODEitlw=
 github.com/eapache/go-xerial-snappy v0.0.0-20180814174437-776d5712da21/go.mod h1:+020luEh2TKB4/GOp8oxxtq0Daoen/Cii55CzbTV6DU=
 github.com/edsrzf/mmap-go v0.0.0-20170320065105-0bce6a688712/go.mod h1:YO35OhQPt3KJa3ryjFM5Bs14WD66h8eGKpfaBNrHW5M=
@@ -480,14 +482,8 @@ github.com/neo4j/neo4j-go-driver v1.8.1-0.20200803113522-b626aa943eba/go.mod h1:
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/nishanths/predeclared v0.0.0-20200524104333-86fad755b4d3/go.mod h1:nt3d53pc1VYcphSCIaYAJtnPYnr3Zyn8fMq2wvPGPso=
-github.com/odpf/optimus v0.0.1 h1:sDf2ew5gBr1VmECIz9IV9YmnvO21JELCv/bTBuXbaSk=
-github.com/odpf/optimus v0.0.1/go.mod h1:rS2D0LHQKtc+DE1BWwGGRL0e8rUtqS+UMpNWlmnDK/A=
-github.com/odpf/optimus v0.0.2-0.20210616141622-95372d614af4 h1:UIeHvrGH3atuxUjEEy74wldG0yexWYL6LnLDGyOrUQo=
-github.com/odpf/optimus v0.0.2-0.20210616141622-95372d614af4/go.mod h1:rS2D0LHQKtc+DE1BWwGGRL0e8rUtqS+UMpNWlmnDK/A=
-github.com/odpf/optimus v0.0.2-0.20210616142906-8725cce21d25 h1:Ip0BK10YOAWlsRMKqqF7dTB1xtZWCK+oXBztb74Xnbc=
-github.com/odpf/optimus v0.0.2-0.20210616142906-8725cce21d25/go.mod h1:rS2D0LHQKtc+DE1BWwGGRL0e8rUtqS+UMpNWlmnDK/A=
-github.com/odpf/optimus v0.0.2-0.20210616164659-ab07ea2685da h1:g3rBlNZxqomODTWP/PFmSE4OYA3AbnaB2p/pOD0GEZ8=
-github.com/odpf/optimus v0.0.2-0.20210616164659-ab07ea2685da/go.mod h1:rS2D0LHQKtc+DE1BWwGGRL0e8rUtqS+UMpNWlmnDK/A=
+github.com/odpf/optimus v0.0.2-alpha.2.0.20210702064521-d11711f33be4 h1:OcsxJ7krYH7aY93AABO0gT/vsOqxZ0++Pa0cmeKwXj4=
+github.com/odpf/optimus v0.0.2-alpha.2.0.20210702064521-d11711f33be4/go.mod h1:69UqYuKxD2cmrWC9DYNOkWyINMjqvuGBCrH3i6bU1yo=
 github.com/oklog/run v1.0.0 h1:Ru7dDtJNOyC66gQ5dQmaCa0qIsAUFY3sFpK1Xk8igrw=
 github.com/oklog/run v1.0.0/go.mod h1:dlhp/R75TPv97u0XWUtDeV/lRKWPKSdTuV0TZvrmrQA=
 github.com/oklog/ulid v1.3.1/go.mod h1:CirwcVhetQ6Lv90oh/F+FBtV6XMibvdAFo93nm5qn4U=
