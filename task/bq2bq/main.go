@@ -122,31 +122,32 @@ func (b *BQ2BQ) GetTaskQuestions(ctx context.Context, req models.GetTaskQuestion
 		{
 			Name:   "Project",
 			Prompt: "Project ID",
-			Help:   "Bigquery Project ID",
+			Help:   "Destination bigquery project ID",
 			Default: projectDefault,
 		},
 		{
 			Name:   "Dataset",
 			Prompt: "Dataset Name",
-			Help:   "Bigquery Dataset ID",
+			Help:   "Destination bigquery dataset ID",
 			Default: datasetDefault,
 		},
 		{
 			Name:   "Table",
 			Prompt: "Table ID",
-			Help:   "Bigquery Table ID",
+			Help:   "Destination bigquery table ID",
 			Default: tableDefault,
 		},
 		{
 			Name:   "LoadMethod",
 			Prompt: "Load method to use on destination",
+			Default: LoadMethodAppend,
 			Help: `
+APPEND        - Append to existing table
 REPLACE       - Deletes existing partition and insert result of select query
 MERGE         - DML statements, BQ scripts
-APPEND        - Append to existing table
 REPLACE_MERGE - [Experimental] Advanced replace using merge query
 `,
-			Multiselect:         []string{LoadMethodReplace, LoadMethodMerge, LoadMethodAppend, LoadMethodReplaceMerge},
+			Multiselect:         []string{LoadMethodAppend, LoadMethodReplace, LoadMethodMerge, LoadMethodReplaceMerge},
 			SubQuestions: []models.PluginSubQuestion{
 				{
 					IfValue:   LoadMethodReplaceMerge,
