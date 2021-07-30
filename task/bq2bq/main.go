@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -14,9 +13,7 @@ import (
 	"github.com/odpf/optimus/plugin"
 
 	"github.com/odpf/optimus/models"
-	"github.com/odpf/optimus/plugin/task"
 
-	hplugin "github.com/hashicorp/go-plugin"
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/patrickmn/go-cache"
 	"github.com/spf13/cast"
@@ -67,7 +64,7 @@ var (
 	FakeSelectStmt  = "SELECT * from `%s` WHERE FALSE LIMIT 1"
 
 	CacheTTL         = time.Hour * 24
-	CacheCleanUp     = time.Hour * 1
+	CacheCleanUp     = time.Hour * 6
 	ErrCacheNotFound = errors.New("item not found")
 
 	LoadMethodMerge        = "MERGE"
@@ -76,6 +73,9 @@ var (
 	LoadMethodReplaceMerge = "REPLACE_MERGE"
 
 	QueryFileReplaceBreakMarker = "\n--*--optimus-break-marker--*--\n"
+
+	_ models.CommandLineMod = &BQ2BQ{}
+	_ models.DependencyResolverMod = &BQ2BQ{}
 )
 
 type ClientFactory interface {
@@ -91,16 +91,19 @@ type BQ2BQ struct {
 	logger hclog.Logger
 }
 
-func (b *BQ2BQ) GetTaskSchema(ctx context.Context, req models.GetTaskSchemaRequest) (models.GetTaskSchemaResponse, error) {
-	return models.GetTaskSchemaResponse{
+func (b *BQ2BQ) PluginInfo() (*models.PluginInfoResponse, error) {
+	return &models.PluginInfoResponse{
 		Name:        Name,
 		Description: "BigQuery to BigQuery transformation task",
 		Image:       fmt.Sprintf("%s:%s", Image, Version),
 		SecretPath:  "/tmp/auth.json",
+		PluginVersion: Version,
+		PluginType: models.PluginTypeTask,
+		PluginMods: []models.PluginMod{models.ModTypeCLI, models.ModTypeDependencyResolver},
 	}, nil
 }
 
-func (b *BQ2BQ) GetTaskQuestions(ctx context.Context, req models.GetTaskQuestionsRequest) (models.GetTaskQuestionsResponse, error) {
+func (b *BQ2BQ) GetQuestions(ctx context.Context, req models.GetQuestionsRequest) (*models.GetQuestionsResponse, error) {
 
 	// generate defaults
 	tableDefault := ""
@@ -167,12 +170,12 @@ for example: DATE(event_timestamp) >= "{{ .DSTART|Date }}" AND DATE(event_timest
 			},
 		},
 	}
-	return models.GetTaskQuestionsResponse{
+	return &models.GetQuestionsResponse{
 		Questions: tQues,
 	}, nil
 }
 
-func (b *BQ2BQ) ValidateTaskQuestion(ctx context.Context, req models.ValidateTaskQuestionRequest) (models.ValidateTaskQuestionResponse, error) {
+func (b *BQ2BQ) ValidateQuestion(ctx context.Context, req models.ValidateQuestionRequest) (*models.ValidateQuestionResponse, error) {
 	var err error
 	switch req.Answer.Question.Name {
 	case "Project":
@@ -185,12 +188,12 @@ func (b *BQ2BQ) ValidateTaskQuestion(ctx context.Context, req models.ValidateTas
 		err = survey.Required(req.Answer.Value)
 	}
 	if err != nil {
-		return models.ValidateTaskQuestionResponse{
+		return &models.ValidateQuestionResponse{
 			Success: false,
 			Error:   err.Error(),
 		}, nil
 	}
-	return models.ValidateTaskQuestionResponse{
+	return &models.ValidateQuestionResponse{
 		Success: true,
 	}, nil
 }
@@ -204,13 +207,13 @@ func findAnswerByName(name string, answers []models.PluginAnswer) (models.Plugin
 	return models.PluginAnswer{}, false
 }
 
-func (b *BQ2BQ) DefaultTaskConfig(ctx context.Context, request models.DefaultTaskConfigRequest) (models.DefaultTaskConfigResponse, error) {
+func (b *BQ2BQ) DefaultConfig(ctx context.Context, request models.DefaultConfigRequest) (*models.DefaultConfigResponse, error) {
 	proj, _ := findAnswerByName("Project", request.Answers)
 	dataset, _ := findAnswerByName("Dataset", request.Answers)
 	tab, _ := findAnswerByName("Table", request.Answers)
 	lm, _ := findAnswerByName("LoadMethod", request.Answers)
 
-	conf := []models.TaskPluginConfig{
+	conf := []models.PluginConfig{
 		{
 			Name:  "PROJECT",
 			Value: proj.Value,
@@ -233,19 +236,19 @@ func (b *BQ2BQ) DefaultTaskConfig(ctx context.Context, request models.DefaultTas
 		},
 	}
 	if pf, ok := findAnswerByName("PartitionFilter", request.Answers); ok {
-		conf = append(conf, models.TaskPluginConfig{
+		conf = append(conf, models.PluginConfig{
 			Name:  "PARTITION_FILTER",
 			Value: pf.Value,
 		})
 	}
-	return models.DefaultTaskConfigResponse{
+	return &models.DefaultConfigResponse{
 		Config: conf,
 	}, nil
 }
 
-func (b *BQ2BQ) DefaultTaskAssets(ctx context.Context, _ models.DefaultTaskAssetsRequest) (models.DefaultTaskAssetsResponse, error) {
-	return models.DefaultTaskAssetsResponse{
-		Assets: []models.TaskPluginAsset{
+func (b *BQ2BQ) DefaultAssets(ctx context.Context, _ models.DefaultAssetsRequest) (*models.DefaultAssetsResponse, error) {
+	return &models.DefaultAssetsResponse{
+		Assets: []models.PluginAsset{
 			{
 				Name: QueryFileName,
 				Value: `-- SQL query goes here
@@ -257,10 +260,10 @@ Select * from "project.dataset.table";
 	}, nil
 }
 
-func (b *BQ2BQ) CompileTaskAssets(ctx context.Context, req models.CompileTaskAssetsRequest) (models.CompileTaskAssetsResponse, error) {
+func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsRequest) (*models.CompileAssetsResponse, error) {
 	method, ok := req.Config.Get("LOAD_METHOD")
 	if !ok || method.Value != LoadMethodReplace {
-		return models.CompileTaskAssetsResponse{
+		return &models.CompileAssetsResponse{
 			Assets: req.Assets,
 		}, nil
 	}
@@ -271,15 +274,15 @@ func (b *BQ2BQ) CompileTaskAssets(ctx context.Context, req models.CompileTaskAss
 
 	// check if window size is greater than a DAY, if not do nothing
 	partitionDelta := time.Hour * 24
-	if req.TaskWindow.Size <= partitionDelta {
-		return models.CompileTaskAssetsResponse{
+	if req.Window.Size <= partitionDelta {
+		return &models.CompileAssetsResponse{
 			Assets: req.Assets,
 		}, nil
 	}
 
 	// partition window in range
 	instanceFileMap := map[string]string{}
-	instanceEnvMap := map[string]string{}
+	instanceEnvMap := map[string]interface{}{}
 	if req.InstanceData != nil {
 		for _, jobRunData := range req.InstanceData {
 			switch jobRunData.Type {
@@ -296,8 +299,8 @@ func (b *BQ2BQ) CompileTaskAssets(ctx context.Context, req models.CompileTaskAss
 		start time.Time
 		end   time.Time
 	}
-	dstart := req.TaskWindow.GetStart(req.InstanceSchedule)
-	dend := req.TaskWindow.GetEnd(req.InstanceSchedule)
+	dstart := req.Window.GetStart(req.InstanceSchedule)
+	dend := req.Window.GetEnd(req.InstanceSchedule)
 	for currentPart := dstart; currentPart.Before(dend); currentPart = currentPart.Add(partitionDelta) {
 		destinationsPartitions = append(destinationsPartitions, struct {
 			start time.Time
@@ -320,40 +323,40 @@ func (b *BQ2BQ) CompileTaskAssets(ctx context.Context, req models.CompileTaskAss
 	for _, part := range destinationsPartitions {
 		instanceEnvMap[instance.ConfigKeyDstart] = part.start.Format(models.InstanceScheduledAtTimeLayout)
 		instanceEnvMap[instance.ConfigKeyDend] = part.end.Format(models.InstanceScheduledAtTimeLayout)
-		if compiledAssetMap, err = b.TemplateEngine.CompileFiles(fileMap, instance.ConvertStringToInterfaceMap(instanceEnvMap)); err != nil {
-			return models.CompileTaskAssetsResponse{}, err
+		if compiledAssetMap, err = b.TemplateEngine.CompileFiles(fileMap, instanceEnvMap); err != nil {
+			return &models.CompileAssetsResponse{}, err
 		}
 		parsedQueries = append(parsedQueries, compiledAssetMap[QueryFileName])
 	}
 	compiledAssetMap[QueryFileName] = strings.Join(parsedQueries, QueryFileReplaceBreakMarker)
 
-	taskAssets := models.TaskPluginAssets{}
+	taskAssets := models.PluginAssets{}
 	for name, val := range compiledAssetMap {
-		taskAssets = append(taskAssets, models.TaskPluginAsset{
+		taskAssets = append(taskAssets, models.PluginAsset{
 			Name:  name,
 			Value: val,
 		})
 	}
-	return models.CompileTaskAssetsResponse{
+	return &models.CompileAssetsResponse{
 		Assets: taskAssets,
 	}, nil
 }
 
-// GenerateTaskDestination uses config details to build target table
-// this format should match with GenerateTaskDependencies output
-func (b *BQ2BQ) GenerateTaskDestination(ctx context.Context, request models.GenerateTaskDestinationRequest) (models.GenerateTaskDestinationResponse, error) {
+// GenerateDestination uses config details to build target table
+// this format should match with GenerateDependencies output
+func (b *BQ2BQ) GenerateDestination(ctx context.Context, request models.GenerateDestinationRequest) (*models.GenerateDestinationResponse, error) {
 	proj, ok1 := request.Config.Get("PROJECT")
 	dataset, ok2 := request.Config.Get("DATASET")
 	tab, ok3 := request.Config.Get("TABLE")
 	if ok1 && ok2 && ok3 {
-		return models.GenerateTaskDestinationResponse{
+		return &models.GenerateDestinationResponse{
 			Destination: fmt.Sprintf("%s:%s.%s", proj.Value, dataset.Value, tab.Value),
 		}, nil
 	}
-	return models.GenerateTaskDestinationResponse{}, errors.New("missing config key required to generate destination")
+	return nil, errors.New("missing config key required to generate destination")
 }
 
-// GenerateTaskDependencies uses assets to find out the source tables of this
+// GenerateDependencies uses assets to find out the source tables of this
 // transformation.
 // Try using BQ APIs to search for referenced tables. This work for Select stmts
 // but not for Merge/Scripts, for them use regex based search and then create
@@ -361,7 +364,8 @@ func (b *BQ2BQ) GenerateTaskDestination(ctx context.Context, request models.Gene
 // case regex based table is a view & not actually a source table. Because this
 // fn should generate the actual source as dependency
 // BQ2BQ dependencies are BQ tables in format "project:dataset.table"
-func (b *BQ2BQ) GenerateTaskDependencies(ctx context.Context, request models.GenerateTaskDependenciesRequest) (response models.GenerateTaskDependenciesResponse, err error) {
+func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.GenerateDependenciesRequest) (response *models.GenerateDependenciesResponse, err error) {
+	response = &models.GenerateDependenciesResponse{}
 	response.Dependencies = []string{}
 
 	// check if exists in cache
@@ -369,7 +373,7 @@ func (b *BQ2BQ) GenerateTaskDependencies(ctx context.Context, request models.Gen
 		// cache ready
 		return cachedResponse, nil
 	} else if err != ErrCacheNotFound {
-		return models.GenerateTaskDependenciesResponse{}, err
+		return nil, err
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, TimeoutDuration)
@@ -382,7 +386,7 @@ func (b *BQ2BQ) GenerateTaskDependencies(ctx context.Context, request models.Gen
 
 	queryData, ok := request.Assets.Get(QueryFileName)
 	if !ok {
-		return models.GenerateTaskDependenciesResponse{}, errors.New("empty sql file")
+		return nil, errors.New("empty sql file")
 	}
 
 	// first parse sql statement to find dependencies and ignored tables
@@ -440,7 +444,7 @@ func (b *BQ2BQ) GenerateTaskDependencies(ctx context.Context, request models.Gen
 	}
 
 	// before returning remove self
-	selfTable, err := b.GenerateTaskDestination(ctx, models.GenerateTaskDestinationRequest{
+	selfTable, err := b.GenerateDestination(ctx, models.GenerateDestinationRequest{
 		Config:  request.Config,
 		Assets:  request.Assets,
 		Project: request.Project,
@@ -482,7 +486,7 @@ func (b *BQ2BQ) GenerateTaskDependencies(ctx context.Context, request models.Gen
 // they're a single sequence of characters. But on the other hand
 // this also means that otherwise valid reference to "dataset.table"
 // will not be recognised.
-func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, request models.GenerateTaskDependenciesRequest) ([]string, []string, error) {
+func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, request models.GenerateDependenciesRequest) ([]string, []string, error) {
 
 	queryData, ok := request.Assets.Get(QueryFileName)
 	if !ok {
@@ -496,7 +500,7 @@ func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, request models.Ge
 	// we mark destination as a pseudo table to avoid a dependency
 	// cycle. This is for supporting DML queries that may also refer
 	// to themselves.
-	dest, err := b.GenerateTaskDestination(ctx, models.GenerateTaskDestinationRequest{
+	dest, err := b.GenerateDestination(ctx, models.GenerateDestinationRequest{
 		Config:  request.Config,
 		Assets:  request.Assets,
 		Project: request.Project,
@@ -642,24 +646,24 @@ func removeString(s []string, match string) []string {
 	return s[:len(s)-1]
 }
 
-func (b *BQ2BQ) IsCached(request models.GenerateTaskDependenciesRequest) (models.GenerateTaskDependenciesResponse, error) {
+func (b *BQ2BQ) IsCached(request models.GenerateDependenciesRequest) (*models.GenerateDependenciesResponse, error) {
 	if b.C == nil {
-		return models.GenerateTaskDependenciesResponse{}, ErrCacheNotFound
+		return nil, ErrCacheNotFound
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	requestHash, err := hashstructure.Hash(request, hashstructure.FormatV2, nil)
 	if err != nil {
-		return models.GenerateTaskDependenciesResponse{}, err
+		return nil, err
 	}
 	hashString := cast.ToString(requestHash)
 	if item, ok := b.C.Get(hashString); ok {
-		return item.(models.GenerateTaskDependenciesResponse), nil
+		return item.(*models.GenerateDependenciesResponse), nil
 	}
-	return models.GenerateTaskDependenciesResponse{}, ErrCacheNotFound
+	return nil, ErrCacheNotFound
 }
 
-func (b *BQ2BQ) Cache(request models.GenerateTaskDependenciesRequest, response models.GenerateTaskDependenciesResponse) error {
+func (b *BQ2BQ) Cache(request models.GenerateDependenciesRequest, response *models.GenerateDependenciesResponse) error {
 	if b.C == nil {
 		return nil
 	}
@@ -675,29 +679,12 @@ func (b *BQ2BQ) Cache(request models.GenerateTaskDependenciesRequest, response m
 }
 
 func main() {
-	bq2bq := &BQ2BQ{
-		ClientFac:      &DefaultBQClientFactory{},
-		C:              cache.New(CacheTTL, CacheCleanUp),
-		TemplateEngine: instance.NewGoEngine(),
-		logger: hclog.New(&hclog.LoggerOptions{
-			Level:      hclog.Trace,
-			Output:     os.Stderr,
-			JSONFormat: true,
-		}),
-	}
-
-	var handshakeConfig = hplugin.HandshakeConfig{
-		ProtocolVersion:  1,
-		MagicCookieKey:   plugin.MagicCookieKey,
-		MagicCookieValue: plugin.MagicCookieValue,
-	}
-	hplugin.Serve(&hplugin.ServeConfig{
-		HandshakeConfig: handshakeConfig,
-		Plugins: map[string]hplugin.Plugin{
-			plugin.TaskPluginName: task.NewPlugin(bq2bq),
-		},
-		// A non-nil value here enables gRPC serving for this plugin...
-		GRPCServer: hplugin.DefaultGRPCServer,
+	plugin.Serve(func(log hclog.Logger) interface{} {
+		return &BQ2BQ{
+			ClientFac:      &DefaultBQClientFactory{},
+			C:              cache.New(CacheTTL, CacheCleanUp),
+			TemplateEngine: instance.NewGoEngine(),
+			logger: log,
+		}
 	})
-
 }

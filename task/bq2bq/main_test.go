@@ -141,11 +141,11 @@ func (fac *bqClientFactoryMock) New(ctx context.Context, svcAcc string) (bqiface
 }
 
 func TestBQ2BQ(t *testing.T) {
-	t.Run("GenerateTaskDestination", func(t *testing.T) {
+	t.Run("GenerateDestination", func(t *testing.T) {
 		t.Run("should properly generate a destination provided correct config inputs", func(t *testing.T) {
 			b2b := &BQ2BQ{}
-			dst, err := b2b.GenerateTaskDestination(context.Background(), models.GenerateTaskDestinationRequest{
-				Config: models.TaskPluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+			dst, err := b2b.GenerateDestination(context.Background(), models.GenerateDestinationRequest{
+				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
 					{
 						Name:  "PROJECT",
 						Value: "proj",
@@ -165,8 +165,8 @@ func TestBQ2BQ(t *testing.T) {
 		})
 		t.Run("should throw an error if any on of the config is missing to generate destination", func(t *testing.T) {
 			b2b := &BQ2BQ{}
-			_, err := b2b.GenerateTaskDestination(context.Background(), models.GenerateTaskDestinationRequest{
-				Config: models.TaskPluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+			_, err := b2b.GenerateDestination(context.Background(), models.GenerateDestinationRequest{
+				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
 					{
 						Name:  "DATASET",
 						Value: "datas",
@@ -350,14 +350,14 @@ func TestBQ2BQ(t *testing.T) {
 
 			for _, test := range testCases {
 				t.Run(test.Name, func(t *testing.T) {
-					data := models.GenerateTaskDependenciesRequest{
-						Assets: models.TaskPluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+					data := models.GenerateDependenciesRequest{
+						Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
 							{
 								Name:  QueryFileName,
 								Value: test.Query,
 							},
 						})),
-						Config: models.TaskPluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+						Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
 							{
 								Name:  "PROJECT",
 								Value: "proj",
@@ -497,14 +497,14 @@ func TestBQ2BQ(t *testing.T) {
 	t.Run("GenerateDependencies", func(t *testing.T) {
 		t.Run("should generate dependencies using BQ APIs for select statements", func(t *testing.T) {
 			expectedDeps := []string{"proj:dataset.table1"}
-			data := models.GenerateTaskDependenciesRequest{
-				Assets: models.TaskPluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+			data := models.GenerateDependenciesRequest{
+				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
 					{
 						Name:  QueryFileName,
 						Value: "Select * from proj.dataset.table1",
 					},
 				})),
-				Config: models.TaskPluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
 					{
 						Name:  "PROJECT",
 						Value: "proj",
@@ -560,7 +560,7 @@ func TestBQ2BQ(t *testing.T) {
 			b := &BQ2BQ{
 				ClientFac: bqClientFac,
 			}
-			got, err := b.GenerateTaskDependencies(context.Background(), data)
+			got, err := b.GenerateDependencies(context.Background(), data)
 			if err != nil {
 				t.Errorf("error = %v", err)
 				return
@@ -571,14 +571,14 @@ func TestBQ2BQ(t *testing.T) {
 		})
 		t.Run("should generate dependencies using BQ APIs for select statements but ignore if asked explicitly", func(t *testing.T) {
 			expectedDeps := []string{}
-			data := models.GenerateTaskDependenciesRequest{
-				Assets: models.TaskPluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+			data := models.GenerateDependenciesRequest{
+				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
 					{
 						Name:  QueryFileName,
 						Value: "Select * from /* @ignoreupstream */ proj.dataset.table1",
 					},
 				})),
-				Config: models.TaskPluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
 					{
 						Name:  "PROJECT",
 						Value: "proj",
@@ -634,7 +634,7 @@ func TestBQ2BQ(t *testing.T) {
 			b := &BQ2BQ{
 				ClientFac: bqClientFac,
 			}
-			got, err := b.GenerateTaskDependencies(context.Background(), data)
+			got, err := b.GenerateDependencies(context.Background(), data)
 			if err != nil {
 				t.Errorf("error = %v", err)
 				return
@@ -645,14 +645,14 @@ func TestBQ2BQ(t *testing.T) {
 		})
 		t.Run("should generate dependencies using BQ APIs for select statements then reuse cache for the next time", func(t *testing.T) {
 			expectedDeps := []string{"proj:dataset.table1"}
-			data := models.GenerateTaskDependenciesRequest{
-				Assets: models.TaskPluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+			data := models.GenerateDependenciesRequest{
+				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
 					{
 						Name:  QueryFileName,
 						Value: "Select * from proj.dataset.table1",
 					},
 				})),
-				Config: models.TaskPluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
 					{
 						Name:  "PROJECT",
 						Value: "proj",
@@ -709,7 +709,7 @@ func TestBQ2BQ(t *testing.T) {
 				ClientFac: bqClientFac,
 				C:         cache.New(CacheTTL, CacheCleanUp),
 			}
-			got, err := b.GenerateTaskDependencies(context.Background(), data)
+			got, err := b.GenerateDependencies(context.Background(), data)
 			if err != nil {
 				t.Errorf("error = %v", err)
 				return
@@ -719,7 +719,7 @@ func TestBQ2BQ(t *testing.T) {
 			}
 
 			// should be cached
-			got, err = b.GenerateTaskDependencies(context.Background(), data)
+			got, err = b.GenerateDependencies(context.Background(), data)
 			if err != nil {
 				t.Errorf("error = %v", err)
 				return
@@ -733,8 +733,8 @@ func TestBQ2BQ(t *testing.T) {
 				"proj:dataset.table1",
 				"proj:dataset.table2",
 			}
-			data := models.GenerateTaskDependenciesRequest{
-				Assets: models.TaskPluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+			data := models.GenerateDependenciesRequest{
+				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
 					{
 						Name: QueryFileName,
 						Value: `
@@ -744,7 +744,7 @@ func TestBQ2BQ(t *testing.T) {
 	`,
 					},
 				})),
-				Config: models.TaskPluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
 					{
 						Name:  "PROJECT",
 						Value: "proj",
@@ -842,7 +842,7 @@ func TestBQ2BQ(t *testing.T) {
 			b := &BQ2BQ{
 				ClientFac: bqClientFac,
 			}
-			got, err := b.GenerateTaskDependencies(context.Background(), data)
+			got, err := b.GenerateDependencies(context.Background(), data)
 			if err != nil {
 				t.Errorf("error = %v", err)
 				return

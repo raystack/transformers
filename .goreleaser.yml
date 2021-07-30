@@ -5,7 +5,7 @@ builds:
   - dir: ./task/bq2bq
     main: .
     id: "bq2bq"
-    binary: "optimus-task-bq2bq_{{.Version}}_{{.Os}}_{{.Arch}}"
+    binary: "optimus-bq2bq_{{.Os}}_{{.Arch}}"
     ldflags:
       - -s -w -X main.Version={{.Version}} -X main.Image=docker.io/odpf/optimus-task-bq2bq
     goos:

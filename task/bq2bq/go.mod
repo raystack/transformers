@@ -7,9 +7,8 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.2.12
 	github.com/googleapis/google-cloud-go-testing v0.0.0-20210427215956-1487aa9ec5b0
 	github.com/hashicorp/go-hclog v0.14.1
-	github.com/hashicorp/go-plugin v1.4.2
 	github.com/mitchellh/hashstructure/v2 v2.0.2
-	github.com/odpf/optimus v0.0.2-alpha.2.0.20210702064521-d11711f33be4
+	github.com/odpf/optimus v0.0.3-0.20210730103049-7aca79c3a912
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cast v1.3.1
