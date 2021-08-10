@@ -389,8 +389,17 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 		return nil, errors.New("empty sql file")
 	}
 
+	selfTable, err := b.GenerateDestination(ctx, models.GenerateDestinationRequest{
+		Config:  request.Config,
+		Assets:  request.Assets,
+		Project: request.Project,
+	})
+	if err != nil {
+		return response, err
+	}
+
 	// first parse sql statement to find dependencies and ignored tables
-	parsedDependencies, ignoredDependencies, err := b.FindDependenciesWithRegex(ctx, request)
+	parsedDependencies, ignoredDependencies, err := b.FindDependenciesWithRegex(ctx, request, selfTable.Destination)
 	if err != nil {
 		return response, err
 	}
@@ -398,7 +407,9 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	// try to resolve referenced tables directly from BQ APIs
 	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(timeoutCtx, queryData.Value, svcAcc)
 	if err != nil {
-		return response, err
+		if !strings.Contains(err.Error(), fmt.Sprintf("Not found: Table %s was not found", selfTable.Destination)) {
+			return response, err
+		}
 	}
 
 	if len(response.Dependencies) == 0 {
@@ -443,15 +454,6 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 		}
 	}
 
-	// before returning remove self
-	selfTable, err := b.GenerateDestination(ctx, models.GenerateDestinationRequest{
-		Config:  request.Config,
-		Assets:  request.Assets,
-		Project: request.Project,
-	})
-	if err != nil {
-		return response, err
-	}
 	response.Dependencies = removeString(response.Dependencies, selfTable.Destination)
 
 	// before returning remove ignored tables
@@ -486,7 +488,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 // they're a single sequence of characters. But on the other hand
 // this also means that otherwise valid reference to "dataset.table"
 // will not be recognised.
-func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, request models.GenerateDependenciesRequest) ([]string, []string, error) {
+func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, request models.GenerateDependenciesRequest, destination string) ([]string, []string, error) {
 
 	queryData, ok := request.Assets.Get(QueryFileName)
 	if !ok {
@@ -500,15 +502,8 @@ func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, request models.Ge
 	// we mark destination as a pseudo table to avoid a dependency
 	// cycle. This is for supporting DML queries that may also refer
 	// to themselves.
-	dest, err := b.GenerateDestination(ctx, models.GenerateDestinationRequest{
-		Config:  request.Config,
-		Assets:  request.Assets,
-		Project: request.Project,
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-	pseudoTables[dest.Destination] = true
+
+	pseudoTables[destination] = true
 
 	// remove comments from query
 	matches := queryCommentPatterns.FindAllStringSubmatch(queryString, -1)
