@@ -399,7 +399,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	}
 
 	// first parse sql statement to find dependencies and ignored tables
-	parsedDependencies, ignoredDependencies, err := b.FindDependenciesWithRegex(ctx, request, selfTable.Destination)
+	parsedDependencies, ignoredDependencies, err := b.FindDependenciesWithRegex(ctx, queryData.Value, selfTable.Destination)
 	if err != nil {
 		return response, err
 	}
@@ -407,6 +407,9 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	// try to resolve referenced tables directly from BQ APIs
 	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(timeoutCtx, queryData.Value, svcAcc)
 	if err != nil {
+		// SQL query with reference to destination table such as DML and self joins will have dependency
+		// cycle on dry run since the table might not be available yet. We check the error from BQ
+		// to ignore if the error message contains destination table not found.
 		if !strings.Contains(err.Error(), fmt.Sprintf("Not found: Table %s was not found", selfTable.Destination)) {
 			return response, err
 		}
@@ -467,7 +470,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 
 // FindDependenciesWithRegex look for table patterns in SQL query to find
 // source tables.
-// Config is required to generate destination and avoid cycles
+// Task destination is required to avoid cycles
 //
 // we look for certain patterns in the query source code
 // in particular, we look for the following constructs
@@ -488,13 +491,8 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 // they're a single sequence of characters. But on the other hand
 // this also means that otherwise valid reference to "dataset.table"
 // will not be recognised.
-func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, request models.GenerateDependenciesRequest, destination string) ([]string, []string, error) {
+func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, queryString string, destination string) ([]string, []string, error) {
 
-	queryData, ok := request.Assets.Get(QueryFileName)
-	if !ok {
-		return nil, nil, errors.New("empty sql file")
-	}
-	queryString := queryData.Value
 	tablesFound := make(map[string]bool)
 	pseudoTables := make(map[string]bool)
 	var tablesIgnored []string

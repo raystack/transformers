@@ -357,24 +357,12 @@ func TestBQ2BQ(t *testing.T) {
 								Value: test.Query,
 							},
 						})),
-						Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
-							{
-								Name:  "PROJECT",
-								Value: "proj",
-							},
-							{
-								Name:  "DATASET",
-								Value: "datas",
-							},
-							{
-								Name:  "TABLE",
-								Value: "tab",
-							},
-						}),
 					}
+
+					queryData, _ := data.Assets.Get(QueryFileName)
 					destination := "proj.datas.tab"
 					b2b := &BQ2BQ{}
-					deps, ignored, err := b2b.FindDependenciesWithRegex(context.Background(), data, destination)
+					deps, ignored, err := b2b.FindDependenciesWithRegex(context.Background(), queryData.Value, destination)
 					assert.Nil(t, err)
 					assert.Equal(t, test.Sources, newSet(deps...))
 					assert.Equal(t, test.Ignored, newSet(ignored...))
