@@ -162,6 +162,7 @@ func TestBQ2BQ(t *testing.T) {
 			})
 			assert.Nil(t, err)
 			assert.Equal(t, "proj:datas.tab", dst.Destination)
+			assert.Equal(t, models.DestinationTypeBigquery, dst.Type)
 		})
 		t.Run("should throw an error if any on of the config is missing to generate destination", func(t *testing.T) {
 			b2b := &BQ2BQ{}
@@ -485,7 +486,7 @@ func TestBQ2BQ(t *testing.T) {
 
 	t.Run("GenerateDependencies", func(t *testing.T) {
 		t.Run("should generate dependencies using BQ APIs for select statements", func(t *testing.T) {
-			expectedDeps := []string{"proj:dataset.table1"}
+			expectedDeps := []string{"bigquery://proj:dataset.table1"}
 			data := models.GenerateDependenciesRequest{
 				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
 					{
@@ -559,7 +560,7 @@ func TestBQ2BQ(t *testing.T) {
 			}
 		})
 		t.Run("should generate dependencies using BQ APIs for select statements but ignore if asked explicitly", func(t *testing.T) {
-			expectedDeps := []string{}
+			var expectedDeps []string
 			data := models.GenerateDependenciesRequest{
 				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
 					{
@@ -633,7 +634,7 @@ func TestBQ2BQ(t *testing.T) {
 			}
 		})
 		t.Run("should generate dependencies using BQ APIs for select statements then reuse cache for the next time", func(t *testing.T) {
-			expectedDeps := []string{"proj:dataset.table1"}
+			expectedDeps := []string{"bigquery://proj:dataset.table1"}
 			data := models.GenerateDependenciesRequest{
 				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
 					{
@@ -719,8 +720,8 @@ func TestBQ2BQ(t *testing.T) {
 		})
 		t.Run("should generate dependencies using regex first then BQ APIs for Scripts", func(t *testing.T) {
 			expectedDeps := []string{
-				"proj:dataset.table1",
-				"proj:dataset.table2",
+				"bigquery://proj:dataset.table1",
+				"bigquery://proj:dataset.table2",
 			}
 			data := models.GenerateDependenciesRequest{
 				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
