@@ -318,6 +318,7 @@ class TaskConfigFromFile(TaskConfig):
 
         self._destination_table_name = _validate_not_empty(self._get_property("TABLE"))
         self._destination_project = _validate_not_empty(self._get_property("PROJECT"))
+        self._execution_project = _validate_not_empty(self._get_property_or_default("EXECUTION_PROJECT", self._destination_project))
         self._destination_dataset = _validate_not_empty(self._get_property("DATASET"))
 
         self._window_size = _validate_window_size(self._get_property("WINDOW_SIZE"))
@@ -342,6 +343,10 @@ class TaskConfigFromFile(TaskConfig):
     @property
     def destination_project(self):
         return self._destination_project
+
+    @property
+    def execution_project(self):
+        return self._execution_project
 
     @property
     def destination_table_name(self):
