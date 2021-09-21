@@ -113,6 +113,7 @@ class TaskConfigFromEnv(TaskConfig):
 
     def __init__(self):
         self._destination_project = get_env_config("PROJECT", raise_if_empty=True)
+        self._execution_project = get_env_config("EXECUTION_PROJECT", default=self._destination_project)
         self._destination_dataset = get_env_config("DATASET", raise_if_empty=True)
         self._destination_table_name = get_env_config("TABLE", raise_if_empty=True)
         self._sql_type = get_env_config("SQL_TYPE", raise_if_empty=True)
@@ -125,6 +126,10 @@ class TaskConfigFromEnv(TaskConfig):
     @property
     def destination_project(self) -> str:
         return self._destination_project
+
+    @property
+    def execution_project(self) -> str:
+        return self._execution_project
 
     @property
     def destination_dataset(self) -> str:
@@ -313,6 +318,7 @@ class TaskConfigFromFile(TaskConfig):
 
         self._destination_table_name = _validate_not_empty(self._get_property("TABLE"))
         self._destination_project = _validate_not_empty(self._get_property("PROJECT"))
+        self._execution_project = _validate_not_empty(self._get_property_or_default("EXECUTION_PROJECT", self._destination_project))
         self._destination_dataset = _validate_not_empty(self._get_property("DATASET"))
 
         self._window_size = _validate_window_size(self._get_property("WINDOW_SIZE"))
@@ -337,6 +343,10 @@ class TaskConfigFromFile(TaskConfig):
     @property
     def destination_project(self):
         return self._destination_project
+
+    @property
+    def execution_project(self):
+        return self._execution_project
 
     @property
     def destination_table_name(self):

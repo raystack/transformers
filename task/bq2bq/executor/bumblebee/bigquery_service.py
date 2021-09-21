@@ -105,7 +105,7 @@ class BigqueryService(BaseBigqueryService):
             query_job_config.destination = table_ref
 
         logger.info("transform load")
-        query_job = self.client.query(query=query, job_config=query_job_config, project=source_project_id)
+        query_job = self.client.query(query=query, job_config=query_job_config)
         logger.info("Job {} is initially in state {} of {} project".format(query_job.job_id, query_job.state,
                                                                            query_job.project))
 
@@ -157,7 +157,7 @@ def create_bigquery_service(task_config: TaskConfigFromEnv, labels, writer):
              'https://www.googleapis.com/auth/cloud-platform',
              'https://www.googleapis.com/auth/drive')
     credentials, _ = google.auth.default(scopes=SCOPE)
-    client = bigquery.Client(project=task_config.destination_project, credentials=credentials)
+    client = bigquery.Client(project=task_config.execution_project, credentials=credentials)
     bigquery_service = BigqueryService(client, labels, writer)
     return bigquery_service
 
