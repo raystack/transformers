@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/odpf/optimus/instance"
 	"github.com/odpf/optimus/plugin"
+	"github.com/odpf/optimus/run"
 
 	"github.com/odpf/optimus/models"
 
@@ -74,7 +74,7 @@ var (
 
 	QueryFileReplaceBreakMarker = "\n--*--optimus-break-marker--*--\n"
 
-	_ models.CommandLineMod = &BQ2BQ{}
+	_ models.CommandLineMod        = &BQ2BQ{}
 	_ models.DependencyResolverMod = &BQ2BQ{}
 )
 
@@ -93,13 +93,13 @@ type BQ2BQ struct {
 
 func (b *BQ2BQ) PluginInfo() (*models.PluginInfoResponse, error) {
 	return &models.PluginInfoResponse{
-		Name:        Name,
-		Description: "BigQuery to BigQuery transformation task",
-		Image:       fmt.Sprintf("%s:%s", Image, Version),
-		SecretPath:  "/tmp/auth.json",
+		Name:          Name,
+		Description:   "BigQuery to BigQuery transformation task",
+		Image:         fmt.Sprintf("%s:%s", Image, Version),
+		SecretPath:    "/tmp/auth.json",
 		PluginVersion: Version,
-		PluginType: models.PluginTypeTask,
-		PluginMods: []models.PluginMod{models.ModTypeCLI, models.ModTypeDependencyResolver},
+		PluginType:    models.PluginTypeTask,
+		PluginMods:    []models.PluginMod{models.ModTypeCLI, models.ModTypeDependencyResolver},
 	}, nil
 }
 
@@ -123,26 +123,26 @@ func (b *BQ2BQ) GetQuestions(ctx context.Context, req models.GetQuestionsRequest
 
 	tQues := []models.PluginQuestion{
 		{
-			Name:   "Project",
-			Prompt: "Project ID",
-			Help:   "Destination bigquery project ID",
+			Name:    "Project",
+			Prompt:  "Project ID",
+			Help:    "Destination bigquery project ID",
 			Default: projectDefault,
 		},
 		{
-			Name:   "Dataset",
-			Prompt: "Dataset Name",
-			Help:   "Destination bigquery dataset ID",
+			Name:    "Dataset",
+			Prompt:  "Dataset Name",
+			Help:    "Destination bigquery dataset ID",
 			Default: datasetDefault,
 		},
 		{
-			Name:   "Table",
-			Prompt: "Table ID",
-			Help:   "Destination bigquery table ID",
+			Name:    "Table",
+			Prompt:  "Table ID",
+			Help:    "Destination bigquery table ID",
 			Default: tableDefault,
 		},
 		{
-			Name:   "LoadMethod",
-			Prompt: "Load method to use on destination",
+			Name:    "LoadMethod",
+			Prompt:  "Load method to use on destination",
 			Default: LoadMethodAppend,
 			Help: `
 APPEND        - Append to existing table
@@ -150,10 +150,10 @@ REPLACE       - Deletes existing partition and insert result of select query
 MERGE         - DML statements, BQ scripts
 REPLACE_MERGE - [Experimental] Advanced replace using merge query
 `,
-			Multiselect:         []string{LoadMethodAppend, LoadMethodReplace, LoadMethodMerge, LoadMethodReplaceMerge},
+			Multiselect: []string{LoadMethodAppend, LoadMethodReplace, LoadMethodMerge, LoadMethodReplaceMerge},
 			SubQuestions: []models.PluginSubQuestion{
 				{
-					IfValue:   LoadMethodReplaceMerge,
+					IfValue: LoadMethodReplaceMerge,
 					Questions: []models.PluginQuestion{
 						{
 							Name:   "PartitionFilter",
@@ -319,10 +319,10 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 		compiledAssetMap[asset.Name] = asset.Value
 	}
 	// append job spec assets to list of files need to write
-	fileMap := instance.MergeStringMap(instanceFileMap, compiledAssetMap)
+	fileMap := run.MergeStringMap(instanceFileMap, compiledAssetMap)
 	for _, part := range destinationsPartitions {
-		instanceEnvMap[instance.ConfigKeyDstart] = part.start.Format(models.InstanceScheduledAtTimeLayout)
-		instanceEnvMap[instance.ConfigKeyDend] = part.end.Format(models.InstanceScheduledAtTimeLayout)
+		instanceEnvMap[run.ConfigKeyDstart] = part.start.Format(models.InstanceScheduledAtTimeLayout)
+		instanceEnvMap[run.ConfigKeyDend] = part.end.Format(models.InstanceScheduledAtTimeLayout)
 		if compiledAssetMap, err = b.TemplateEngine.CompileFiles(fileMap, instanceEnvMap); err != nil {
 			return &models.CompileAssetsResponse{}, err
 		}
@@ -351,6 +351,7 @@ func (b *BQ2BQ) GenerateDestination(ctx context.Context, request models.Generate
 	if ok1 && ok2 && ok3 {
 		return &models.GenerateDestinationResponse{
 			Destination: fmt.Sprintf("%s:%s.%s", proj.Value, dataset.Value, tab.Value),
+			Type:        models.DestinationTypeBigquery,
 		}, nil
 	}
 	return nil, errors.New("missing config key required to generate destination")
@@ -463,6 +464,13 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	for _, ignored := range ignoredDependencies {
 		response.Dependencies = removeString(response.Dependencies, ignored)
 	}
+
+	// before returning wrap dependencies with datastore type
+	var dependencies []string
+	for _, dependency := range response.Dependencies {
+		dependencies = append(dependencies, fmt.Sprintf(models.DestinationURNFormat, selfTable.Type, dependency))
+	}
+	response.Dependencies = dependencies
 
 	b.Cache(request, response)
 	return response, nil
@@ -676,8 +684,8 @@ func main() {
 		return &BQ2BQ{
 			ClientFac:      &DefaultBQClientFactory{},
 			C:              cache.New(CacheTTL, CacheCleanUp),
-			TemplateEngine: instance.NewGoEngine(),
-			logger: log,
+			TemplateEngine: run.NewGoEngine(),
+			logger:         log,
 		}
 	})
 }
