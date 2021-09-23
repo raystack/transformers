@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/odpf/optimus/instance"
 	"github.com/odpf/optimus/plugin"
+	"github.com/odpf/optimus/run"
 
 	"github.com/odpf/optimus/models"
 
@@ -319,10 +319,10 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 		compiledAssetMap[asset.Name] = asset.Value
 	}
 	// append job spec assets to list of files need to write
-	fileMap := instance.MergeStringMap(instanceFileMap, compiledAssetMap)
+	fileMap := run.MergeStringMap(instanceFileMap, compiledAssetMap)
 	for _, part := range destinationsPartitions {
-		instanceEnvMap[instance.ConfigKeyDstart] = part.start.Format(models.InstanceScheduledAtTimeLayout)
-		instanceEnvMap[instance.ConfigKeyDend] = part.end.Format(models.InstanceScheduledAtTimeLayout)
+		instanceEnvMap[run.ConfigKeyDstart] = part.start.Format(models.InstanceScheduledAtTimeLayout)
+		instanceEnvMap[run.ConfigKeyDend] = part.end.Format(models.InstanceScheduledAtTimeLayout)
 		if compiledAssetMap, err = b.TemplateEngine.CompileFiles(fileMap, instanceEnvMap); err != nil {
 			return &models.CompileAssetsResponse{}, err
 		}
@@ -684,7 +684,7 @@ func main() {
 		return &BQ2BQ{
 			ClientFac:      &DefaultBQClientFactory{},
 			C:              cache.New(CacheTTL, CacheCleanUp),
-			TemplateEngine: instance.NewGoEngine(),
+			TemplateEngine: run.NewGoEngine(),
 			logger:         log,
 		}
 	})
