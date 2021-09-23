@@ -627,6 +627,8 @@ github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLA
 github.com/nishanths/predeclared v0.0.0-20200524104333-86fad755b4d3/go.mod h1:nt3d53pc1VYcphSCIaYAJtnPYnr3Zyn8fMq2wvPGPso=
 github.com/odpf/optimus v0.0.3-alpha.2.0.20210922081418-477b013b4d7d h1:kQb3cSAK3E7auSD7ayKqRfueN/ZXh8ptlZnBggRJArM=
 github.com/odpf/optimus v0.0.3-alpha.2.0.20210922081418-477b013b4d7d/go.mod h1:SjYMOivFju4Vo5dSUXllMupqdOGNz8evfR/nk5XGHu8=
+github.com/odpf/optimus v0.0.3-alpha.2.0.20210923082021-a908f4e107d9 h1:ekIiUY90vyFbhYbgDXo3MQ5xAgj5ip9cZ+DEpUb1b7U=
+github.com/odpf/optimus v0.0.3-alpha.2.0.20210923082021-a908f4e107d9/go.mod h1:SjYMOivFju4Vo5dSUXllMupqdOGNz8evfR/nk5XGHu8=
 github.com/odpf/salt v0.0.0-20210818232545-e074f9db34ae h1:mZhRzik6tYP3S87WBPCUb/BYHfWsDoJFFpdiS2iGqkM=
 github.com/odpf/salt v0.0.0-20210818232545-e074f9db34ae/go.mod h1:mhfoCoXGSqhIdyTKbQI/mU0GrGoXctwEt/hsM0cSyDQ=
 github.com/oklog/run v1.0.0 h1:Ru7dDtJNOyC66gQ5dQmaCa0qIsAUFY3sFpK1Xk8igrw=
