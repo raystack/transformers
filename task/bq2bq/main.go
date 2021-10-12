@@ -405,6 +405,23 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 		return response, err
 	}
 
+	// try to resolve referenced tables for ignoredDependencies
+	var ignoredDependenciesReferencedTables []string
+	for _, tableName := range ignoredDependencies {
+		// ignore the tables with :
+		if strings.Contains(tableName,":"){
+			continue
+		}
+		// find referenced tables and add it to ignoredDependenciesReferencedTables
+		fakeQuery := fmt.Sprintf(FakeSelectStmt, tableName)
+		deps, err := b.FindDependenciesWithRetryableDryRun(timeoutCtx, fakeQuery, svcAcc)
+		if err != nil {
+			return response, err
+		}
+		ignoredDependenciesReferencedTables = append(ignoredDependenciesReferencedTables, deps...)
+	}
+	ignoredDependencies = append(ignoredDependencies, ignoredDependenciesReferencedTables...)
+
 	// try to resolve referenced tables directly from BQ APIs
 	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(timeoutCtx, queryData.Value, svcAcc)
 	if err != nil {
