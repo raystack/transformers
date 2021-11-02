@@ -268,18 +268,6 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 		}, nil
 	}
 
-	// TODO: making few assumptions here, should be documented
-	// assume destination table is time partitioned
-	// assume table is partitioned as DAY
-
-	// check if window size is greater than a DAY, if not do nothing
-	partitionDelta := time.Hour * 24
-	if req.Window.Size <= partitionDelta {
-		return &models.CompileAssetsResponse{
-			Assets: req.Assets,
-		}, nil
-	}
-
 	// partition window in range
 	instanceFileMap := map[string]string{}
 	instanceEnvMap := map[string]interface{}{}
@@ -293,6 +281,12 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 			}
 		}
 	}
+
+
+	// TODO: making few assumptions here, should be documented
+	// assume destination table is time partitioned
+	// assume table is partitioned as DAY
+	partitionDelta := time.Hour * 24
 
 	// find destination partitions
 	var destinationsPartitions []struct {
@@ -311,7 +305,14 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 		})
 	}
 
-	parsedQueries := []string{}
+	// check if window size is greater than partition delta(a DAY), if not do nothing
+	if dend.Sub(dstart) <= partitionDelta {
+		return &models.CompileAssetsResponse{
+			Assets: req.Assets,
+		}, nil
+	}
+
+	var parsedQueries []string
 	var err error
 
 	compiledAssetMap := map[string]string{}
