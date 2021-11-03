@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/go-hclog"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/odpf/optimus/plugin"
 	"github.com/odpf/optimus/run"
@@ -59,7 +60,6 @@ var (
 	// Required secret
 	SecretName = "TASK_BQ2BQ"
 
-	TimeoutDuration = time.Second * 180
 	MaxBQApiRetries = 3
 	FakeSelectStmt  = "SELECT * from `%s` WHERE FALSE LIMIT 1"
 
@@ -71,6 +71,7 @@ var (
 	LoadMethodAppend       = "APPEND"
 	LoadMethodReplace      = "REPLACE"
 	LoadMethodReplaceMerge = "REPLACE_MERGE"
+	LoadMethodReplaceAll   = "REPLACE_ALL"
 
 	QueryFileReplaceBreakMarker = "\n--*--optimus-break-marker--*--\n"
 
@@ -150,7 +151,12 @@ REPLACE       - Deletes existing partition and insert result of select query
 MERGE         - DML statements, BQ scripts
 REPLACE_MERGE - [Experimental] Advanced replace using merge query
 `,
-			Multiselect: []string{LoadMethodAppend, LoadMethodReplace, LoadMethodMerge, LoadMethodReplaceMerge},
+			Multiselect: []string{
+				LoadMethodAppend,
+				LoadMethodReplace,
+				LoadMethodMerge,
+				LoadMethodReplaceMerge,
+				LoadMethodReplaceAll},
 			SubQuestions: []models.PluginSubQuestion{
 				{
 					IfValue: LoadMethodReplaceMerge,
@@ -282,7 +288,6 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 		}
 	}
 
-
 	// TODO: making few assumptions here, should be documented
 	// assume destination table is time partitioned
 	// assume table is partitioned as DAY
@@ -378,9 +383,6 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 		return nil, err
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, TimeoutDuration)
-	defer cancel()
-
 	svcAcc, ok := request.Project.Secret.GetByName(SecretName)
 	if !ok || len(svcAcc) == 0 {
 		return response, errors.New(fmt.Sprintf("secret %s required to generate dependencies not found for %s", SecretName, Name))
@@ -407,7 +409,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	}
 
 	// try to resolve referenced tables directly from BQ APIs
-	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(timeoutCtx, queryData.Value, svcAcc)
+	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(ctx, queryData.Value, svcAcc)
 	if err != nil {
 		// SQL query with reference to destination table such as DML and self joins will have dependency
 		// cycle on dry run since the table might not be available yet. We check the error from BQ
@@ -422,20 +424,20 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 		// fake Select STMTs to find actual referenced tables
 
 		resultChan := make(chan []string)
-		eg, apiCtx := errgroup.WithContext(timeoutCtx) // it will stop executing further after first error
+		eg, apiCtx := errgroup.WithContext(ctx) // it will stop executing further after first error
 		for _, tableName := range parsedDependencies {
 			fakeQuery := fmt.Sprintf(FakeSelectStmt, tableName)
 			// find dependencies in parallel
 			eg.Go(func() error {
 				//prepare dummy query
-				deps, err := b.FindDependenciesWithRetryableDryRun(timeoutCtx, fakeQuery, svcAcc)
+				deps, err := b.FindDependenciesWithRetryableDryRun(ctx, fakeQuery, svcAcc)
 				if err != nil {
 					return err
 				}
 				select {
 				case resultChan <- deps:
 					return nil
-				// timeoutCtx requests to be cancelled
+				// requests to be cancelled
 				case <-apiCtx.Done():
 					return apiCtx.Err()
 				}

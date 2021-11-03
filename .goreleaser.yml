@@ -52,7 +52,7 @@ dockers:
     extra_files:
     - ./entrypoint.sh
     build_flag_templates:
-    - "--build-arg=OPTIMUS_RELEASE_URL=https://github.com/odpf/optimus/releases/download/v0.0.1/optimus_0.0.1_linux_x86_64.tar.gz"
+    - "--build-arg=OPTIMUS_RELEASE_URL=https://github.com/odpf/optimus/releases/download/v0.0.3/optimus_0.0.3_linux_x86_64.tar.gz"
 
 brews:
   - name: optimus-plugins-odpf

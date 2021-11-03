@@ -41,13 +41,15 @@ class LoadMethod(Enum):
 
     REPLACE_MERGE = "REPLACE_MERGE"
 
+    REPLACE_ALL = "REPLACE_ALL"
+
     MERGE = "MERGE"
 
     @property
     def write_disposition(self):
         if self == LoadMethod.APPEND:
             return WriteDisposition.WRITE_APPEND
-        elif self == LoadMethod.REPLACE or self == LoadMethod.REPLACE_MERGE:
+        elif self == LoadMethod.REPLACE or self == LoadMethod.REPLACE_MERGE or self == LoadMethod.REPLACE_ALL:
             return WriteDisposition.WRITE_TRUNCATE
         else:
             raise Exception("write disposition is only for APPEND and REPLACE load method")

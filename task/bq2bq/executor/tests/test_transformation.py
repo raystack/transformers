@@ -101,7 +101,7 @@ class TestTransformationTask(TestCase):
 
         bigquery_service = BigqueryServiceMock()
         task = SinglePartitionTransformation(bigquery_service, task_config, query, localized_start_time,
-                                             localized_end_time, False, localized_execution_time, timedelta(days=1))
+                                             localized_end_time, False, localized_execution_time)
         task.transform()
 
         final_query = """select count(1) from table where date >= '2019-01-01' and date < '2019-01-02'
@@ -123,7 +123,7 @@ class TestTransformationTask(TestCase):
 
         bigquery_service = BigqueryServiceMock()
         task = SinglePartitionTransformation(bigquery_service, task_config, query, localized_start_time,
-                                             localized_end_time, False, localized_execution_time, timedelta(days=1))
+                                             localized_end_time, False, localized_execution_time)
         task.transform()
 
         final_query = """select count(1) from table where date >= '2019-01-04' and date < '2019-01-06'"""
@@ -160,7 +160,7 @@ class TestTransformationTask(TestCase):
 
         bigquery_service = BigqueryServiceMock()
         task = SinglePartitionTransformation(bigquery_service, task_config, query, localized_start_time,
-                                             localized_end_time, False, localized_execution_time, timedelta(days=1))
+                                             localized_end_time, False, localized_execution_time)
         task.transform()
 
         final_query = """select count(1) from table where date >= '2019-01-03' and date < '2019-01-10'"""
