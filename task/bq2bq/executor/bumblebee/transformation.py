@@ -134,6 +134,27 @@ class Transformation:
                                                             )
 
             transformation.transform()
+        elif self.task_config.load_method is LoadMethod.REPLACE_ALL:
+            # query bq and check if table is partitioned
+            bq_destination_table = self.bigquery_service.get_table(self.task_config.destination_table)
+            if bq_destination_table.time_partitioning is None and bq_destination_table.range_partitioning is None:
+                task_queries = self.sql_query.split(OPTIMUS_QUERY_BREAK_MARKER)
+                transformation = TableTransformation(self.bigquery_service,
+                                                     self.task_config,
+                                                     task_queries[0],
+                                                     self.dstart,
+                                                     self.dend,
+                                                     self.dry_run,
+                                                     localised_execution_time)
+            else:
+                # queries where source data/partition map with start date as destination partition
+                transformation = SinglePartitionTransformation(self.bigquery_service,
+                                                              self.task_config,
+                                                              self.sql_query,
+                                                              self.dstart, self.dend,
+                                                              self.dry_run,
+                                                              localised_execution_time,)
+            transformation.transform()
         else:
             raise Exception("unsupported load method {}".format(self.task_config.load_method))
 
@@ -222,14 +243,12 @@ class SinglePartitionTransformation:
                  dstart: datetime,
                  dend: datetime,
                  dry_run: bool,
-                 execution_time: datetime,
-                 partition_strategy: timedelta):
+                 execution_time: datetime):
         self.bigquery_service = bigquery_service
         self.task_config = task_config
         self.task_query = task_query
 
         self.dry_run = dry_run
-        self.partition_strategy = partition_strategy
         self.window = CustomWindow(dstart, dend)
         self.execution_time = execution_time
 

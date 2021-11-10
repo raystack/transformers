@@ -178,10 +178,10 @@ def partition_append():
     )
 
 
-def merge_replace():
+def replace_merge():
     bq2bq(
-        "./samples/tasks/merge_replace/auto/properties.cfg",
-        "./samples/tasks/merge_replace/auto/query.sql",
+        "samples/tasks/replace_merge/auto/properties.cfg",
+        "samples/tasks/replace_merge/auto/query.sql",
         None,
         datetime(2020, 12, 5, 1),
         datetime(2020, 12, 5, 1),
@@ -190,4 +190,16 @@ def merge_replace():
     )
 
 
-merge_replace()
+def replace_all():
+    bq2bq(
+        "samples/tasks/replace_all/basic/properties.cfg",
+        "samples/tasks/replace_all/basic/query.sql",
+        None,
+        datetime(2021, 9, 1, 1),
+        datetime(2021, 9, 30, 1),
+        execution_date,
+        False
+    )
+
+
+replace_all()

@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/odpf/optimus/run"
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/odpf/optimus/models"
 	"github.com/patrickmn/go-cache"
@@ -141,10 +143,122 @@ func (fac *bqClientFactoryMock) New(ctx context.Context, svcAcc string) (bqiface
 }
 
 func TestBQ2BQ(t *testing.T) {
+	ctx := context.Background()
+	t.Run("CompileAssets", func(t *testing.T) {
+		scheduledAt := time.Date(2021, 1, 15, 2, 2, 2, 2, time.UTC)
+		t.Run("should not compile assets if load method is not replace", func(t *testing.T) {
+			compileRequest := models.CompileAssetsRequest{
+				Config:           models.PluginConfigs{
+					{
+						Name:  "LOAD_METHOD",
+						Value: "MERGE",
+					},
+				},
+				Assets:           models.PluginAssets{
+					{
+						Name:  "query.sql",
+						Value: `Select * from table where ts > "{{.DSTART}}"`,
+					},
+				},
+				InstanceData:     []models.InstanceSpecData{},
+				InstanceSchedule: scheduledAt,
+			}
+			b2b := &BQ2BQ{}
+			resp, err := b2b.CompileAssets(ctx, compileRequest)
+			assert.Nil(t, err)
+			assert.NotNil(t, resp)
+			compAsset ,_ := compileRequest.Assets.Get("query.sql")
+			respAsset ,_ := resp.Assets.Get("query.sql")
+			assert.Equal(t, compAsset.Value, respAsset.Value)
+		})
+		t.Run("should not compile assets if load method is replace but window size is less than equal partition delta", func(t *testing.T) {
+			compileRequest := models.CompileAssetsRequest{
+				PluginOptions:    models.PluginOptions{
+					DryRun: false,
+				},
+				Config:           models.PluginConfigs{
+					{
+						Name:  "LOAD_METHOD",
+						Value: "REPLACE",
+					},
+				},
+				Window:           models.JobSpecTaskWindow{
+					Size:       time.Hour * 24,
+					Offset:     0,
+					TruncateTo: "w",
+				},
+				Assets:           models.PluginAssets{
+					{
+						Name:  "query.sql",
+						Value: `Select * from table where ts > "{{.DSTART}}"`,
+					},
+				},
+				InstanceData:     []models.InstanceSpecData{},
+				InstanceSchedule: scheduledAt,
+			}
+			b2b := &BQ2BQ{
+				TemplateEngine: run.NewGoEngine(),
+			}
+			resp, err := b2b.CompileAssets(ctx, compileRequest)
+			assert.Nil(t, err)
+			assert.NotNil(t, resp)
+			compAsset, _ := compileRequest.Assets.Get("query.sql")
+			respAsset ,_ := resp.Assets.Get("query.sql")
+			assert.Equal(t, compAsset.Value, respAsset.Value)
+		})
+		t.Run("should compile assets if load method is replace and break the query into multiple parts", func(t *testing.T) {
+			compileRequest := models.CompileAssetsRequest{
+				PluginOptions:    models.PluginOptions{
+					DryRun: false,
+				},
+				Config:           models.PluginConfigs{
+					{
+						Name:  "LOAD_METHOD",
+						Value: "REPLACE",
+					},
+				},
+				Window:           models.JobSpecTaskWindow{
+					Size:       time.Hour * 24 * 7,
+					Offset:     0,
+					TruncateTo: "w",
+				},
+				Assets:           models.PluginAssets{
+					{
+						Name:  "query.sql",
+						Value: `Select * from table where ts > "{{.DSTART}}"`,
+					},
+				},
+				InstanceData:     []models.InstanceSpecData{},
+				InstanceSchedule: scheduledAt,
+			}
+			b2b := &BQ2BQ{
+				TemplateEngine: run.NewGoEngine(),
+			}
+			resp, err := b2b.CompileAssets(ctx, compileRequest)
+			assert.Nil(t, err)
+			assert.NotNil(t, resp)
+			compAsset := `Select * from table where ts > "2021-01-10T00:00:00Z"
+--*--optimus-break-marker--*--
+Select * from table where ts > "2021-01-11T00:00:00Z"
+--*--optimus-break-marker--*--
+Select * from table where ts > "2021-01-12T00:00:00Z"
+--*--optimus-break-marker--*--
+Select * from table where ts > "2021-01-13T00:00:00Z"
+--*--optimus-break-marker--*--
+Select * from table where ts > "2021-01-14T00:00:00Z"
+--*--optimus-break-marker--*--
+Select * from table where ts > "2021-01-15T00:00:00Z"
+--*--optimus-break-marker--*--
+Select * from table where ts > "2021-01-16T00:00:00Z"`
+			respAsset ,_ := resp.Assets.Get("query.sql")
+			assert.Equal(t, compAsset, respAsset.Value)
+		})
+
+	})
 	t.Run("GenerateDestination", func(t *testing.T) {
 		t.Run("should properly generate a destination provided correct config inputs", func(t *testing.T) {
 			b2b := &BQ2BQ{}
-			dst, err := b2b.GenerateDestination(context.Background(), models.GenerateDestinationRequest{
+			dst, err := b2b.GenerateDestination(ctx, models.GenerateDestinationRequest{
 				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
 					{
 						Name:  "PROJECT",
@@ -166,7 +280,7 @@ func TestBQ2BQ(t *testing.T) {
 		})
 		t.Run("should throw an error if any on of the config is missing to generate destination", func(t *testing.T) {
 			b2b := &BQ2BQ{}
-			_, err := b2b.GenerateDestination(context.Background(), models.GenerateDestinationRequest{
+			_, err := b2b.GenerateDestination(ctx, models.GenerateDestinationRequest{
 				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
 					{
 						Name:  "DATASET",
@@ -363,7 +477,7 @@ func TestBQ2BQ(t *testing.T) {
 					queryData, _ := data.Assets.Get(QueryFileName)
 					destination := "proj.datas.tab"
 					b2b := &BQ2BQ{}
-					deps, ignored, err := b2b.FindDependenciesWithRegex(context.Background(), queryData.Value, destination)
+					deps, ignored, err := b2b.FindDependenciesWithRegex(ctx, queryData.Value, destination)
 					assert.Nil(t, err)
 					assert.Equal(t, test.Sources, newSet(deps...))
 					assert.Equal(t, test.Ignored, newSet(ignored...))
@@ -449,7 +563,7 @@ func TestBQ2BQ(t *testing.T) {
 			},
 		}
 		for _, tt := range tests {
-			ctx := context.Background()
+			ctx := ctx
 			t.Run(tt.name, func(t *testing.T) {
 				job := new(bqJob)
 				job.On("LastStatus").Return(&bigquery.JobStatus{
@@ -550,7 +664,7 @@ func TestBQ2BQ(t *testing.T) {
 			b := &BQ2BQ{
 				ClientFac: bqClientFac,
 			}
-			got, err := b.GenerateDependencies(context.Background(), data)
+			got, err := b.GenerateDependencies(ctx, data)
 			if err != nil {
 				t.Errorf("error = %v", err)
 				return
@@ -624,7 +738,7 @@ func TestBQ2BQ(t *testing.T) {
 			b := &BQ2BQ{
 				ClientFac: bqClientFac,
 			}
-			got, err := b.GenerateDependencies(context.Background(), data)
+			got, err := b.GenerateDependencies(ctx, data)
 			if err != nil {
 				t.Errorf("error = %v", err)
 				return
@@ -699,7 +813,7 @@ func TestBQ2BQ(t *testing.T) {
 				ClientFac: bqClientFac,
 				C:         cache.New(CacheTTL, CacheCleanUp),
 			}
-			got, err := b.GenerateDependencies(context.Background(), data)
+			got, err := b.GenerateDependencies(ctx, data)
 			if err != nil {
 				t.Errorf("error = %v", err)
 				return
@@ -709,7 +823,7 @@ func TestBQ2BQ(t *testing.T) {
 			}
 
 			// should be cached
-			got, err = b.GenerateDependencies(context.Background(), data)
+			got, err = b.GenerateDependencies(ctx, data)
 			if err != nil {
 				t.Errorf("error = %v", err)
 				return
@@ -832,7 +946,7 @@ func TestBQ2BQ(t *testing.T) {
 			b := &BQ2BQ{
 				ClientFac: bqClientFac,
 			}
-			got, err := b.GenerateDependencies(context.Background(), data)
+			got, err := b.GenerateDependencies(ctx, data)
 			if err != nil {
 				t.Errorf("error = %v", err)
 				return
