@@ -406,7 +406,8 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	}
 
 	// try to resolve referenced tables for ignoredDependencies
-	var ignoredDependenciesReferencedTables []string
+	resultChan := make(chan []string)
+	eg, apiCtx := errgroup.WithContext(timeoutCtx) // it will stop executing further after first error
 	for _, tableName := range ignoredDependencies {
 		// ignore the tables with :
 		if strings.Contains(tableName,":"){
@@ -414,13 +415,34 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 		}
 		// find referenced tables and add it to ignoredDependenciesReferencedTables
 		fakeQuery := fmt.Sprintf(FakeSelectStmt, tableName)
-		deps, err := b.FindDependenciesWithRetryableDryRun(timeoutCtx, fakeQuery, svcAcc)
-		if err != nil {
-			return response, err
-		}
-		ignoredDependenciesReferencedTables = append(ignoredDependenciesReferencedTables, deps...)
+
+		eg.Go(func() error{
+			deps, err := b.FindDependenciesWithRetryableDryRun(timeoutCtx, fakeQuery, svcAcc)
+			if err != nil {
+				return err
+			}
+			select {
+			case resultChan <- deps:
+				return nil
+			// timeoutCtx requests to be cancelled
+			case <-apiCtx.Done():
+				return apiCtx.Err()
+			}
+		})
 	}
-	ignoredDependencies = append(ignoredDependencies, ignoredDependenciesReferencedTables...)
+	go func() {
+		// if all done, stop waiting for results
+		eg.Wait()
+		close(resultChan)
+	}()
+
+	for dep := range resultChan {
+		ignoredDependencies = append(ignoredDependencies, dep...)
+	}
+
+	if err := eg.Wait(); err != nil {
+		return response, err
+	}
 
 	// try to resolve referenced tables directly from BQ APIs
 	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(timeoutCtx, queryData.Value, svcAcc)
