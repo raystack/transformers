@@ -157,7 +157,9 @@ def create_bigquery_service(task_config: TaskConfigFromEnv, labels, writer):
              'https://www.googleapis.com/auth/cloud-platform',
              'https://www.googleapis.com/auth/drive')
     credentials, _ = google.auth.default(scopes=SCOPE)
-    client = bigquery.Client(project=task_config.execution_project, credentials=credentials)
+    default_query_job_config = QueryJobConfig()
+    default_query_job_config.priority = task_config.query_priority
+    client = bigquery.Client(project=task_config.execution_project, credentials=credentials, default_query_job_config=default_query_job_config)
     bigquery_service = BigqueryService(client, labels, writer)
     return bigquery_service
 

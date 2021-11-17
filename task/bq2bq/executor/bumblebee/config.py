@@ -7,7 +7,7 @@ from typing import Optional
 import configparser
 import iso8601
 import pytz
-from google.cloud.bigquery.job import WriteDisposition
+from google.cloud.bigquery.job import WriteDisposition, QueryPriority
 from abc import ABC
 from abc import abstractmethod
 
@@ -120,6 +120,7 @@ class TaskConfigFromEnv(TaskConfig):
         self._destination_table_name = get_env_config("TABLE", raise_if_empty=True)
         self._sql_type = get_env_config("SQL_TYPE", raise_if_empty=True)
         self._filter_expression = get_env_config("PARTITION_FILTER", default=None)
+        self._query_priority = get_env_config("QUERY_PRIORITY", default="INTERACTIVE")
         self._load_method = LoadMethod[get_env_config("LOAD_METHOD", raise_if_empty=True)]
         self._timezone = _validate_timezone_exist(get_env_config("TIMEZONE", default="UTC"))
         self._use_spillover = _bool_from_str(get_env_config("USE_SPILLOVER", default="true"))
@@ -148,6 +149,13 @@ class TaskConfigFromEnv(TaskConfig):
     @property
     def sql_type(self) -> str:
         return self._sql_type
+
+    @property
+    def query_priority(self):
+        if self._query_priority == 'BATCH':
+            return QueryPriority.BATCH
+        else:
+            return QueryPriority.INTERACTIVE
 
     @property
     def load_method(self):
@@ -328,6 +336,7 @@ class TaskConfigFromFile(TaskConfig):
         self._window_truncate_upto = self._get_property("WINDOW_TRUNCATE_UPTO")
 
         self._filter_expression = self._get_property_or_default("PARTITION_FILTER", None)
+        self._query_priority = self._get_property_or_default("QUERY_PRIORITY", "INTERACTIVE")
         self._load_method = LoadMethod[self._get_property("LOAD_METHOD")]
         self._timezone = _validate_timezone_exist(self._get_property_or_default("TIMEZONE", "UTC"))
 
@@ -369,6 +378,13 @@ class TaskConfigFromFile(TaskConfig):
     @property
     def timezone(self):
         return self._timezone
+    
+    @property
+    def query_priority(self):
+        if self._query_priority == 'BATCH':
+            return QueryPriority.BATCH
+        else:
+            return QueryPriority.INTERACTIVE
 
     @property
     def load_method(self):
