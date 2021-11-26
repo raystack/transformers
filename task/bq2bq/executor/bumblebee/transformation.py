@@ -10,6 +10,7 @@ from bumblebee.loader import BaseLoader, TableLoader, DMLLoader, PartitionLoader
 from bumblebee.log import get_logger
 from bumblebee.query import Query, DestinationParameter, WindowParameter, ExecutionParameter, MergeReplaceQuery
 from bumblebee.window import WindowFactory, Window, CustomWindow
+from concurrent.futures import ThreadPoolExecutor
 from google.cloud.bigquery.table import TimePartitioningType
 
 logger = get_logger(__name__)
@@ -376,7 +377,11 @@ class MultiPartitionTransformation:
         # break query file
         task_queries = self.task_query.split(OPTIMUS_QUERY_BREAK_MARKER)
         if len(task_queries) < len(datetime_list):
-            raise Exception("query needs to be broken using {}, {} query found, needed {}\n{}".format(OPTIMUS_QUERY_BREAK_MARKER, len(task_queries), len(datetime_list), self.task_query))
+            raise Exception(
+                "query needs to be broken using {}, {} query found, needed {}\n{}".format(OPTIMUS_QUERY_BREAK_MARKER,
+                                                                                          len(task_queries),
+                                                                                          len(datetime_list),
+                                                                                          self.task_query))
 
         tasks = []
         query_index = 0
@@ -397,9 +402,8 @@ class MultiPartitionTransformation:
             tasks.append(task)
             query_index += 1
 
-        # executing serially for now
-        for task in tasks:
-            task.execute()
+        executor = ConcurrentTaskExecutor(self.concurrency)
+        executor.execute(tasks)
 
 
 class LegacySpilloverTransformation:
@@ -507,20 +511,20 @@ class ConcurrentTaskExecutor:
         if tasks is not None and len(tasks) > 0:
             self._concurrent_execute_task(tasks, self.concurrency)
 
+    def execute_task(self, task):
+        return task.execute()
+
     # TODO: future should check for task exception
     def _concurrent_execute_task(self, tasks, concurrency: int):
-        async def execute_all():
-            batches = split_list(tasks, concurrency)
-            for batch in batches:
-                futures = [task.async_execute() for task in batch]
-                await asyncio.wait(futures)
 
-        self.async_exec(execute_all)
+        batches = split_list(tasks, concurrency)
+        for batch in batches:
+            with ThreadPoolExecutor(concurrency) as executor:
+                threads = executor.map(self.execute_task, batch)
+                # Return futures to catch exit code
+                for future in threads:
+                    future.result()
 
-    def async_exec(self, func):
-        ioloop = asyncio.get_event_loop_policy().new_event_loop()
-        ioloop.run_until_complete(func())
-        ioloop.close()
 
 
 def distinct_list(a_list: List) -> List:
