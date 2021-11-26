@@ -1,4 +1,5 @@
 import asyncio
+import concurrent
 import math
 from datetime import datetime, timedelta
 from typing import List, TypeVar
@@ -520,9 +521,8 @@ class ConcurrentTaskExecutor:
         batches = split_list(tasks, concurrency)
         for batch in batches:
             with ThreadPoolExecutor(concurrency) as executor:
-                threads = executor.map(self.execute_task, batch)
-                # Return futures to catch exit code
-                for future in threads:
+                threads = {executor.submit(self.execute_task, task): task for task in batch}
+                for future in concurrent.futures.as_completed(threads):
                     future.result()
 
 
