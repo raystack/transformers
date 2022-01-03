@@ -3,18 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/odpf/optimus/run"
 	"reflect"
 	"sort"
 	"testing"
 	"time"
 
-	"github.com/odpf/optimus/models"
-	"github.com/patrickmn/go-cache"
-	"github.com/stretchr/testify/assert"
-
 	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
+	"github.com/odpf/optimus/models"
+	"github.com/odpf/optimus/run"
+	"github.com/patrickmn/go-cache"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -148,13 +147,13 @@ func TestBQ2BQ(t *testing.T) {
 		scheduledAt := time.Date(2021, 1, 15, 2, 2, 2, 2, time.UTC)
 		t.Run("should not compile assets if load method is not replace", func(t *testing.T) {
 			compileRequest := models.CompileAssetsRequest{
-				Config:           models.PluginConfigs{
+				Config: models.PluginConfigs{
 					{
 						Name:  "LOAD_METHOD",
 						Value: "MERGE",
 					},
 				},
-				Assets:           models.PluginAssets{
+				Assets: models.PluginAssets{
 					{
 						Name:  "query.sql",
 						Value: `Select * from table where ts > "{{.DSTART}}"`,
@@ -167,27 +166,27 @@ func TestBQ2BQ(t *testing.T) {
 			resp, err := b2b.CompileAssets(ctx, compileRequest)
 			assert.Nil(t, err)
 			assert.NotNil(t, resp)
-			compAsset ,_ := compileRequest.Assets.Get("query.sql")
-			respAsset ,_ := resp.Assets.Get("query.sql")
+			compAsset, _ := compileRequest.Assets.Get("query.sql")
+			respAsset, _ := resp.Assets.Get("query.sql")
 			assert.Equal(t, compAsset.Value, respAsset.Value)
 		})
 		t.Run("should not compile assets if load method is replace but window size is less than equal partition delta", func(t *testing.T) {
 			compileRequest := models.CompileAssetsRequest{
-				PluginOptions:    models.PluginOptions{
+				PluginOptions: models.PluginOptions{
 					DryRun: false,
 				},
-				Config:           models.PluginConfigs{
+				Config: models.PluginConfigs{
 					{
 						Name:  "LOAD_METHOD",
 						Value: "REPLACE",
 					},
 				},
-				Window:           models.JobSpecTaskWindow{
+				Window: models.JobSpecTaskWindow{
 					Size:       time.Hour * 24,
 					Offset:     0,
 					TruncateTo: "w",
 				},
-				Assets:           models.PluginAssets{
+				Assets: models.PluginAssets{
 					{
 						Name:  "query.sql",
 						Value: `Select * from table where ts > "{{.DSTART}}"`,
@@ -203,26 +202,26 @@ func TestBQ2BQ(t *testing.T) {
 			assert.Nil(t, err)
 			assert.NotNil(t, resp)
 			compAsset, _ := compileRequest.Assets.Get("query.sql")
-			respAsset ,_ := resp.Assets.Get("query.sql")
+			respAsset, _ := resp.Assets.Get("query.sql")
 			assert.Equal(t, compAsset.Value, respAsset.Value)
 		})
 		t.Run("should compile assets if load method is replace and break the query into multiple parts", func(t *testing.T) {
 			compileRequest := models.CompileAssetsRequest{
-				PluginOptions:    models.PluginOptions{
+				PluginOptions: models.PluginOptions{
 					DryRun: false,
 				},
-				Config:           models.PluginConfigs{
+				Config: models.PluginConfigs{
 					{
 						Name:  "LOAD_METHOD",
 						Value: "REPLACE",
 					},
 				},
-				Window:           models.JobSpecTaskWindow{
+				Window: models.JobSpecTaskWindow{
 					Size:       time.Hour * 24 * 7,
 					Offset:     0,
 					TruncateTo: "w",
 				},
-				Assets:           models.PluginAssets{
+				Assets: models.PluginAssets{
 					{
 						Name:  "query.sql",
 						Value: `Select * from table where ts > "{{.DSTART}}"`,
@@ -250,7 +249,7 @@ Select * from table where ts > "2021-01-14T00:00:00Z"
 Select * from table where ts > "2021-01-15T00:00:00Z"
 --*--optimus-break-marker--*--
 Select * from table where ts > "2021-01-16T00:00:00Z"`
-			respAsset ,_ := resp.Assets.Get("query.sql")
+			respAsset, _ := resp.Assets.Get("query.sql")
 			assert.Equal(t, compAsset, respAsset.Value)
 		})
 
@@ -316,6 +315,12 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 					Name:    "simple query",
 					Query:   "select * from data-engineering.testing.table1",
 					Sources: newSet("data-engineering.testing.table1"),
+					Ignored: newSet(),
+				},
+				{
+					Name:    "simple query with hyphenated table name",
+					Query:   "select * from data-engineering.testing.table_name-1",
+					Sources: newSet("data-engineering.testing.table_name-1"),
 					Ignored: newSet(),
 				},
 				{
