@@ -20,8 +20,7 @@ func (f *vFactory) NewFromRegex(re, message string) survey.Validator {
 			return fmt.Errorf("was expecting a string, got %s", k.String())
 		}
 		val := v.(string)
-		matched := regex.Match([]byte(val))
-		if matched == false {
+		if !regex.Match([]byte(val)) {
 			return fmt.Errorf(message)
 		}
 		return nil
