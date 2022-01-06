@@ -40,7 +40,8 @@ changelog:
     exclude:
       - '^docs:'
       - '^test:'
-
+      - '^chore:'
+      - '^build:'
 dockers:
   -
     goos: linux
