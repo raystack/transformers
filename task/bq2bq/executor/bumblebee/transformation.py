@@ -518,12 +518,10 @@ class ConcurrentTaskExecutor:
     # TODO: future should check for task exception
     def _concurrent_execute_task(self, tasks, concurrency: int):
 
-        batches = split_list(tasks, concurrency)
-        for batch in batches:
-            with ThreadPoolExecutor(concurrency) as executor:
-                threads = {executor.submit(self.execute_task, task): task for task in batch}
-                for future in concurrent.futures.as_completed(threads):
-                    future.result()
+        with ThreadPoolExecutor(concurrency) as executor:
+            threads = {executor.submit(self.execute_task, task): task for task in tasks}
+            for future in concurrent.futures.as_completed(threads):
+                future.result()
 
 
 
