@@ -519,8 +519,8 @@ class ConcurrentTaskExecutor:
     def _concurrent_execute_task(self, tasks, concurrency: int):
 
         with ThreadPoolExecutor(concurrency) as executor:
-            threads = {executor.submit(self.execute_task, task): task for task in tasks}
-            for future in concurrent.futures.as_completed(threads):
+            futures = {executor.submit(self.execute_task, task): task for task in tasks}
+            for future in concurrent.futures.as_completed(futures):
                 future.result()
 
 
