@@ -2,6 +2,10 @@
 # wait for few seconds to prepare scheduler for the run
 sleep 5
 
+#get optimus version
+echo "-- optimus client and server version"
+/opt/optimus version --with-server
+
 # get resources
 echo "-- initializing optimus assets"
 OPTIMUS_ADMIN_ENABLED=1 /opt/optimus admin build instance "$JOB_NAME" --project \
