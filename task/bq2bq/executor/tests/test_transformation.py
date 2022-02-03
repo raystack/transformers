@@ -444,15 +444,15 @@ class TestBulkExecutor(TestCase):
 
         datetime_ranges = [start_time, next_day]
 
-        async def execute_mock():
+        def execute_mock():
             print("a")
 
         task_mock = MagicMock()
-        task_mock.async_execute = MagicMock(side_effect=execute_mock)
+        task_mock.execute = MagicMock(side_effect=execute_mock)
 
         tasks = [ task_mock for dt in datetime_ranges]
 
         executor = ConcurrentTaskExecutor(concurrency)
         executor.execute(tasks)
 
-        task_mock.async_execute.assert_has_calls([call(),call()])
+        task_mock.execute.assert_has_calls([call(), call()])
