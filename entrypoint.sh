@@ -18,5 +18,10 @@ set +o allexport
 echo "-- current envs"
 printenv
 
+echo "-- exporting env with secret"
+set -o allexport
+source "$JOB_DIR/in/.secret"
+set +o allexport
+
 echo "-- running unit"
 exec $(eval echo "$@")
