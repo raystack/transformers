@@ -26,10 +26,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	ConfigKeyDstart = "DSTART"
+	ConfigKeyDend   = "DEND"
+)
+
 var (
 	Name = "bq2bq"
 
-	// should be injected while building
+	// Version should be injected while building
 	Version = "dev"
 	Image   = "docker.io/odpf/optimus-task-bq2bq"
 
@@ -325,10 +330,10 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 		compiledAssetMap[asset.Name] = asset.Value
 	}
 	// append job spec assets to list of files need to write
-	fileMap := run.MergeStringMap(instanceFileMap, compiledAssetMap)
+	fileMap := mergeStringMap(instanceFileMap, compiledAssetMap)
 	for _, part := range destinationsPartitions {
-		instanceEnvMap[run.ConfigKeyDstart] = part.start.Format(models.InstanceScheduledAtTimeLayout)
-		instanceEnvMap[run.ConfigKeyDend] = part.end.Format(models.InstanceScheduledAtTimeLayout)
+		instanceEnvMap[ConfigKeyDstart] = part.start.Format(models.InstanceScheduledAtTimeLayout)
+		instanceEnvMap[ConfigKeyDend] = part.end.Format(models.InstanceScheduledAtTimeLayout)
 		if compiledAssetMap, err = b.TemplateEngine.CompileFiles(fileMap, instanceEnvMap); err != nil {
 			return &models.CompileAssetsResponse{}, err
 		}
@@ -346,6 +351,17 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 	return &models.CompileAssetsResponse{
 		Assets: taskAssets,
 	}, nil
+}
+
+func mergeStringMap(mp1, mp2 map[string]string) (mp3 map[string]string) {
+	mp3 = make(map[string]string)
+	for k, v := range mp1 {
+		mp3[k] = v
+	}
+	for k, v := range mp2 {
+		mp3[k] = v
+	}
+	return mp3
 }
 
 // GenerateDestination uses config details to build target table
