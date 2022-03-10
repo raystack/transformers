@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -22,7 +23,6 @@ import (
 	"cloud.google.com/go/bigquery"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
-	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -401,7 +401,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 
 	svcAcc, ok := request.Project.Secret.GetByName(SecretName)
 	if !ok || len(svcAcc) == 0 {
-		return response, errors.New(fmt.Sprintf("secret %s required to generate dependencies not found for %s", SecretName, Name))
+		return response, fmt.Errorf("secret %s required to generate dependencies not found for %s", SecretName, Name)
 	}
 
 	queryData, ok := request.Assets.Get(QueryFileName)
@@ -619,12 +619,12 @@ func (b *BQ2BQ) FindDependenciesWithDryRun(ctx context.Context, client bqiface.C
 
 	job, err := q.Run(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "query run")
+		return nil, fmt.Errorf("query run: %w", err)
 	}
 	// Dry run is not asynchronous, so get the latest status and statistics.
 	status := job.LastStatus()
 	if err := status.Err(); err != nil {
-		return nil, errors.Wrap(err, "query status")
+		return nil, fmt.Errorf("query status: %w", err)
 	}
 
 	details, ok := status.Statistics.Details.(*bigquery.QueryStatistics)

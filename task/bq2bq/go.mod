@@ -11,7 +11,6 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/odpf/optimus v0.1.1-0.20220308075814-d775eb109ca6
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pkg/errors v0.9.1
 	github.com/spf13/cast v1.3.1
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
