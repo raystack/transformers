@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -22,14 +23,18 @@ import (
 	"cloud.google.com/go/bigquery"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
-	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
+)
+
+const (
+	ConfigKeyDstart = "DSTART"
+	ConfigKeyDend   = "DEND"
 )
 
 var (
 	Name = "bq2bq"
 
-	// should be injected while building
+	// Version should be injected while building
 	Version = "dev"
 	Image   = "docker.io/odpf/optimus-task-bq2bq"
 
@@ -325,10 +330,10 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 		compiledAssetMap[asset.Name] = asset.Value
 	}
 	// append job spec assets to list of files need to write
-	fileMap := run.MergeStringMap(instanceFileMap, compiledAssetMap)
+	fileMap := mergeStringMap(instanceFileMap, compiledAssetMap)
 	for _, part := range destinationsPartitions {
-		instanceEnvMap[run.ConfigKeyDstart] = part.start.Format(models.InstanceScheduledAtTimeLayout)
-		instanceEnvMap[run.ConfigKeyDend] = part.end.Format(models.InstanceScheduledAtTimeLayout)
+		instanceEnvMap[ConfigKeyDstart] = part.start.Format(models.InstanceScheduledAtTimeLayout)
+		instanceEnvMap[ConfigKeyDend] = part.end.Format(models.InstanceScheduledAtTimeLayout)
 		if compiledAssetMap, err = b.TemplateEngine.CompileFiles(fileMap, instanceEnvMap); err != nil {
 			return &models.CompileAssetsResponse{}, err
 		}
@@ -346,6 +351,17 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 	return &models.CompileAssetsResponse{
 		Assets: taskAssets,
 	}, nil
+}
+
+func mergeStringMap(mp1, mp2 map[string]string) (mp3 map[string]string) {
+	mp3 = make(map[string]string)
+	for k, v := range mp1 {
+		mp3[k] = v
+	}
+	for k, v := range mp2 {
+		mp3[k] = v
+	}
+	return mp3
 }
 
 // GenerateDestination uses config details to build target table
@@ -385,7 +401,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 
 	svcAcc, ok := request.Project.Secret.GetByName(SecretName)
 	if !ok || len(svcAcc) == 0 {
-		return response, errors.New(fmt.Sprintf("secret %s required to generate dependencies not found for %s", SecretName, Name))
+		return response, fmt.Errorf("secret %s required to generate dependencies not found for %s", SecretName, Name)
 	}
 
 	queryData, ok := request.Assets.Get(QueryFileName)
@@ -603,12 +619,12 @@ func (b *BQ2BQ) FindDependenciesWithDryRun(ctx context.Context, client bqiface.C
 
 	job, err := q.Run(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "query run")
+		return nil, fmt.Errorf("query run: %w", err)
 	}
 	// Dry run is not asynchronous, so get the latest status and statistics.
 	status := job.LastStatus()
 	if err := status.Err(); err != nil {
-		return nil, errors.Wrap(err, "query status")
+		return nil, fmt.Errorf("query status: %w", err)
 	}
 
 	details, ok := status.Statistics.Details.(*bigquery.QueryStatistics)
