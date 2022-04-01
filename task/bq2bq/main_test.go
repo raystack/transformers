@@ -626,13 +626,11 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  "TABLE",
 						Value: "tab",
 					},
-				}),
-				Project: models.ProjectSpec{Secret: models.ProjectSecrets{
 					{
 						Name:  SecretName,
 						Value: "some_secret",
 					},
-				}},
+				}),
 			}
 
 			job := new(bqJob)
@@ -700,13 +698,11 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  "TABLE",
 						Value: "tab",
 					},
-				}),
-				Project: models.ProjectSpec{Secret: models.ProjectSecrets{
 					{
 						Name:  SecretName,
 						Value: "some_secret",
 					},
-				}},
+				}),
 			}
 
 			job := new(bqJob)
@@ -774,13 +770,11 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  "TABLE",
 						Value: "tab",
 					},
-				}),
-				Project: models.ProjectSpec{Secret: models.ProjectSecrets{
 					{
 						Name:  SecretName,
 						Value: "some_secret",
 					},
-				}},
+				}),
 			}
 
 			job := new(bqJob)
@@ -866,13 +860,11 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  "TABLE",
 						Value: "tab",
 					},
-				}),
-				Project: models.ProjectSpec{Secret: models.ProjectSecrets{
 					{
 						Name:  SecretName,
 						Value: "some_secret",
 					},
-				}},
+				}),
 			}
 
 			// no tables when used with scripts
