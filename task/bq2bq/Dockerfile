@@ -1,7 +1,6 @@
 FROM docker.io/odpf/optimus-task-bq2bq-executor:latest
 
 ARG OPTIMUS_RELEASE_URL
-ENV GOOGLE_APPLICATION_CREDENTIALS /tmp/auth.json
 
 RUN apk add curl tar
 RUN mkdir -p /opt
