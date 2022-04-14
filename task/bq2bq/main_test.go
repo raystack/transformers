@@ -10,8 +10,8 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
-	"github.com/odpf/optimus/compiler"
 	"github.com/odpf/optimus/models"
+	"github.com/odpf/optimus/run"
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -196,7 +196,7 @@ func TestBQ2BQ(t *testing.T) {
 				InstanceSchedule: scheduledAt,
 			}
 			b2b := &BQ2BQ{
-				TemplateEngine: compiler.NewGoEngine(),
+				TemplateEngine: run.NewGoEngine(),
 			}
 			resp, err := b2b.CompileAssets(ctx, compileRequest)
 			assert.Nil(t, err)
@@ -231,7 +231,7 @@ func TestBQ2BQ(t *testing.T) {
 				InstanceSchedule: scheduledAt,
 			}
 			b2b := &BQ2BQ{
-				TemplateEngine: compiler.NewGoEngine(),
+				TemplateEngine: run.NewGoEngine(),
 			}
 			resp, err := b2b.CompileAssets(ctx, compileRequest)
 			assert.Nil(t, err)
