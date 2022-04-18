@@ -11,10 +11,9 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/odpf/optimus/plugin"
-	"github.com/odpf/optimus/run"
-
+	"github.com/odpf/optimus/compiler"
 	"github.com/odpf/optimus/models"
+	"github.com/odpf/optimus/plugin"
 
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/patrickmn/go-cache"
@@ -399,8 +398,8 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 		return nil, err
 	}
 
-	svcAcc, ok := request.Project.Secret.GetByName(SecretName)
-	if !ok || len(svcAcc) == 0 {
+	accConfig, ok := request.Config.Get(SecretName)
+	if !ok || len(accConfig.Value) == 0 {
 		return response, fmt.Errorf("secret %s required to generate dependencies not found for %s", SecretName, Name)
 	}
 
@@ -410,9 +409,8 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	}
 
 	selfTable, err := b.GenerateDestination(ctx, models.GenerateDestinationRequest{
-		Config:  request.Config,
-		Assets:  request.Assets,
-		Project: request.Project,
+		Config: request.Config,
+		Assets: request.Assets,
 	})
 	if err != nil {
 		return response, err
@@ -425,7 +423,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	}
 
 	// try to resolve referenced tables directly from BQ APIs
-	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(ctx, queryData.Value, svcAcc)
+	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(ctx, queryData.Value, accConfig.Value)
 	if err != nil {
 		// SQL query with reference to destination table such as DML and self joins will have dependency
 		// cycle on dry run since the table might not be available yet. We check the error from BQ
@@ -446,7 +444,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 			// find dependencies in parallel
 			eg.Go(func() error {
 				//prepare dummy query
-				deps, err := b.FindDependenciesWithRetryableDryRun(ctx, fakeQuery, svcAcc)
+				deps, err := b.FindDependenciesWithRetryableDryRun(ctx, fakeQuery, accConfig.Value)
 				if err != nil {
 					return err
 				}
@@ -589,7 +587,7 @@ func (b *BQ2BQ) FindDependenciesWithRetryableDryRun(ctx context.Context, query, 
 	for try := 1; try <= MaxBQApiRetries; try++ {
 		client, err := b.ClientFac.New(ctx, svcAccSecret)
 		if err != nil {
-			return nil, errors.New("bigquery client")
+			return nil, errors.New("failed to create bigquery client")
 		}
 		deps, err := b.FindDependenciesWithDryRun(ctx, client, query)
 		if err != nil {
@@ -703,7 +701,7 @@ func main() {
 		return &BQ2BQ{
 			ClientFac:      &DefaultBQClientFactory{},
 			C:              cache.New(CacheTTL, CacheCleanUp),
-			TemplateEngine: run.NewGoEngine(),
+			TemplateEngine: compiler.NewGoEngine(),
 			logger:         log,
 		}
 	})

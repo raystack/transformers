@@ -10,8 +10,8 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
+	"github.com/odpf/optimus/compiler"
 	"github.com/odpf/optimus/models"
-	"github.com/odpf/optimus/run"
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -196,7 +196,7 @@ func TestBQ2BQ(t *testing.T) {
 				InstanceSchedule: scheduledAt,
 			}
 			b2b := &BQ2BQ{
-				TemplateEngine: run.NewGoEngine(),
+				TemplateEngine: compiler.NewGoEngine(),
 			}
 			resp, err := b2b.CompileAssets(ctx, compileRequest)
 			assert.Nil(t, err)
@@ -231,7 +231,7 @@ func TestBQ2BQ(t *testing.T) {
 				InstanceSchedule: scheduledAt,
 			}
 			b2b := &BQ2BQ{
-				TemplateEngine: run.NewGoEngine(),
+				TemplateEngine: compiler.NewGoEngine(),
 			}
 			resp, err := b2b.CompileAssets(ctx, compileRequest)
 			assert.Nil(t, err)
@@ -626,13 +626,11 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  "TABLE",
 						Value: "tab",
 					},
-				}),
-				Project: models.ProjectSpec{Secret: models.ProjectSecrets{
 					{
 						Name:  SecretName,
 						Value: "some_secret",
 					},
-				}},
+				}),
 			}
 
 			job := new(bqJob)
@@ -700,13 +698,11 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  "TABLE",
 						Value: "tab",
 					},
-				}),
-				Project: models.ProjectSpec{Secret: models.ProjectSecrets{
 					{
 						Name:  SecretName,
 						Value: "some_secret",
 					},
-				}},
+				}),
 			}
 
 			job := new(bqJob)
@@ -774,13 +770,11 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  "TABLE",
 						Value: "tab",
 					},
-				}),
-				Project: models.ProjectSpec{Secret: models.ProjectSecrets{
 					{
 						Name:  SecretName,
 						Value: "some_secret",
 					},
-				}},
+				}),
 			}
 
 			job := new(bqJob)
@@ -866,13 +860,11 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  "TABLE",
 						Value: "tab",
 					},
-				}),
-				Project: models.ProjectSpec{Secret: models.ProjectSecrets{
 					{
 						Name:  SecretName,
 						Value: "some_secret",
 					},
-				}},
+				}),
 			}
 
 			// no tables when used with scripts
