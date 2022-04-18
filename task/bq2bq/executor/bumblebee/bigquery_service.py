@@ -1,5 +1,6 @@
 import json
 import sys
+import os
 from abc import ABC, abstractmethod
 
 import google as google
@@ -14,6 +15,9 @@ from bumblebee.config import TaskConfigFromEnv
 from bumblebee.log import get_logger
 
 logger = get_logger(__name__)
+
+SERVICE_ACCOUNT_VAR = "TASK_BQ2BQ"
+SERVICE_ACCOUNT_TYPE = "service_account"
 
 
 class BaseBigqueryService(ABC):
@@ -153,15 +157,54 @@ def create_bigquery_service(task_config: TaskConfigFromEnv, labels, writer):
     if writer is None:
         writer = writer.StdWriter()
 
-    SCOPE = ('https://www.googleapis.com/auth/bigquery',
-             'https://www.googleapis.com/auth/cloud-platform',
-             'https://www.googleapis.com/auth/drive')
-    credentials, _ = google.auth.default(scopes=SCOPE)
+    credentials = _get_bigquery_credentials()
     default_query_job_config = QueryJobConfig()
     default_query_job_config.priority = task_config.query_priority
     client = bigquery.Client(project=task_config.execution_project, credentials=credentials, default_query_job_config=default_query_job_config)
     bigquery_service = BigqueryService(client, labels, writer)
     return bigquery_service
+
+
+def _get_bigquery_credentials():
+    """Gets credentials from the TASK_BQ2BQ environment var else GOOGLE_APPLICATION_CREDENTIALS for file path."""
+    scope = ('https://www.googleapis.com/auth/bigquery',
+             'https://www.googleapis.com/auth/cloud-platform',
+             'https://www.googleapis.com/auth/drive')
+    account = os.environ.get(SERVICE_ACCOUNT_VAR)
+    creds = _load_credentials_from_var(account, scope)
+    if creds is not None:
+        return creds
+    credentials, _ = google.auth.default(scopes=scope)
+    return credentials
+
+
+def _load_credentials_from_var(account_str, scopes=None):
+    """Loads Google credentials from an environment variable.
+    The credentials file must be a service account key.
+    """
+    if account_str is None:
+        return None
+
+    try:
+        info = json.loads(account_str)
+    except ValueError:
+        return None
+
+    # The type key should indicate that the file is either a service account
+    # credentials file or an authorized user credentials file.
+    credential_type = info.get("type")
+
+    if credential_type == SERVICE_ACCOUNT_TYPE:
+        from google.oauth2 import service_account
+
+        try:
+            credentials = service_account.Credentials.from_service_account_info(info, scopes=scopes)
+        except ValueError:
+            return None
+        return credentials
+
+    else:
+        return None
 
 
 class DummyService(BaseBigqueryService):
