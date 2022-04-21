@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-
 	"github.com/odpf/optimus/compiler"
 	"github.com/odpf/optimus/models"
 	"github.com/odpf/optimus/plugin"
@@ -398,9 +397,16 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 		return nil, err
 	}
 
+	var svcAcc string
 	accConfig, ok := request.Config.Get(SecretName)
 	if !ok || len(accConfig.Value) == 0 {
-		return response, fmt.Errorf("secret %s required to generate dependencies not found for %s", SecretName, Name)
+		// Fallback to project for getting the secret
+		svcAcc, ok = request.Project.Secret.GetByName(SecretName)
+		if !ok || len(svcAcc) == 0 {
+			return response, fmt.Errorf("secret %s required to generate dependencies not found for %s", SecretName, Name)
+		}
+	} else {
+		svcAcc = accConfig.Value
 	}
 
 	queryData, ok := request.Assets.Get(QueryFileName)
@@ -423,7 +429,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	}
 
 	// try to resolve referenced tables directly from BQ APIs
-	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(ctx, queryData.Value, accConfig.Value)
+	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(ctx, queryData.Value, svcAcc)
 	if err != nil {
 		// SQL query with reference to destination table such as DML and self joins will have dependency
 		// cycle on dry run since the table might not be available yet. We check the error from BQ
@@ -444,7 +450,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 			// find dependencies in parallel
 			eg.Go(func() error {
 				//prepare dummy query
-				deps, err := b.FindDependenciesWithRetryableDryRun(ctx, fakeQuery, accConfig.Value)
+				deps, err := b.FindDependenciesWithRetryableDryRun(ctx, fakeQuery, svcAcc)
 				if err != nil {
 					return err
 				}
