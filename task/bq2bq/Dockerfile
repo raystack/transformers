@@ -1,4 +1,5 @@
-FROM docker.io/odpf/optimus-task-bq2bq-executor:latest
+ARG VERSION
+FROM docker.io/odpf/optimus-task-bq2bq-executor:${VERSION}
 
 ARG OPTIMUS_RELEASE_URL
 ENV GOOGLE_APPLICATION_CREDENTIALS /tmp/auth.json
