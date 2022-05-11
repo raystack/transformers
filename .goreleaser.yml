@@ -1,5 +1,5 @@
 env:
-  - OPTIMUS_RELEASE_URL=https://github.com/odpf/optimus/releases/download/v0.2.0-rc.2/optimus_0.2.0-rc.2_linux_x86_64.tar.gz
+  - OPTIMUS_RELEASE_URL=https://github.com/odpf/optimus/releases/download/v0.2.0-alpha/optimus_0.2.0-alpha_linux_x86_64.tar.gz
 
 before:
   hooks:
@@ -36,7 +36,7 @@ release:
 checksum:
   name_template: 'checksums.txt'
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  name_template: "{{.Version}}"
 changelog:
   sort: asc
   filters:
@@ -57,6 +57,7 @@ dockers:
     - ./entrypoint.sh
     build_flag_templates:
       - "--build-arg=OPTIMUS_RELEASE_URL={{ .Env.OPTIMUS_RELEASE_URL }}"
+      - "--build-arg=VERSION={{ .Version }}"
 
 brews:
   - name: optimus-plugins-odpf
@@ -66,10 +67,11 @@ brews:
     license: "Apache 2.0"
     folder: Formula
     description: "Optimus Plugins for warehouse"
+    skip_upload: auto
     dependencies:
       - odpf/taps/optimus
     commit_author:
-      name: Kush Sharma
-      email: thekushsharma@gmail.com
+      name: github-actions[bot]
+      email: 41898282+github-actions[bot]@users.noreply.github.com
     install: |
       bin.install Dir["optimus-*"]
