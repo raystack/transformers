@@ -3,24 +3,24 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-hclog"
-	"github.com/odpf/optimus/compiler"
-	"github.com/odpf/optimus/models"
-	"github.com/odpf/optimus/plugin"
-
-	"github.com/mitchellh/hashstructure/v2"
-	"github.com/patrickmn/go-cache"
-	"github.com/spf13/cast"
-
 	"cloud.google.com/go/bigquery"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
+	"github.com/hashicorp/go-hclog"
+	"github.com/mitchellh/hashstructure/v2"
+	"github.com/odpf/optimus/compiler"
+	"github.com/odpf/optimus/models"
+	"github.com/odpf/optimus/plugin"
+	"github.com/patrickmn/go-cache"
+	"github.com/spf13/cast"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -365,6 +365,9 @@ func mergeStringMap(mp1, mp2 map[string]string) (mp3 map[string]string) {
 // GenerateDestination uses config details to build target table
 // this format should match with GenerateDependencies output
 func (b *BQ2BQ) GenerateDestination(ctx context.Context, request models.GenerateDestinationRequest) (*models.GenerateDestinationResponse, error) {
+	_, span := StartChildSpan(ctx, "GenerateDestination")
+	defer span.End()
+
 	proj, ok1 := request.Config.Get("PROJECT")
 	dataset, ok2 := request.Config.Get("DATASET")
 	tab, ok3 := request.Config.Get("TABLE")
@@ -386,12 +389,16 @@ func (b *BQ2BQ) GenerateDestination(ctx context.Context, request models.Generate
 // fn should generate the actual source as dependency
 // BQ2BQ dependencies are BQ tables in format "project:dataset.table"
 func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.GenerateDependenciesRequest) (response *models.GenerateDependenciesResponse, err error) {
+	spanCtx, span := StartChildSpan(ctx, "GenerateDependencies")
+	defer span.End()
+
 	response = &models.GenerateDependenciesResponse{}
 	response.Dependencies = []string{}
 
 	// check if exists in cache
 	if cachedResponse, err := b.IsCached(request); err == nil {
 		// cache ready
+		span.AddEvent("Request found in cache")
 		return cachedResponse, nil
 	} else if err != ErrCacheNotFound {
 		return nil, err
@@ -400,6 +407,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	var svcAcc string
 	accConfig, ok := request.Config.Get(SecretName)
 	if !ok || len(accConfig.Value) == 0 {
+		span.AddEvent("Required secret not found in config")
 		// Fallback to project for getting the secret
 		svcAcc, ok = request.Project.Secret.GetByName(SecretName)
 		if !ok || len(svcAcc) == 0 {
@@ -414,7 +422,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 		return nil, errors.New("empty sql file")
 	}
 
-	selfTable, err := b.GenerateDestination(ctx, models.GenerateDestinationRequest{
+	selfTable, err := b.GenerateDestination(spanCtx, models.GenerateDestinationRequest{
 		Config: request.Config,
 		Assets: request.Assets,
 	})
@@ -423,13 +431,13 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	}
 
 	// first parse sql statement to find dependencies and ignored tables
-	parsedDependencies, ignoredDependencies, err := b.FindDependenciesWithRegex(ctx, queryData.Value, selfTable.Destination)
+	parsedDependencies, ignoredDependencies, err := b.FindDependenciesWithRegex(spanCtx, queryData.Value, selfTable.Destination)
 	if err != nil {
 		return response, err
 	}
 
 	// try to resolve referenced tables directly from BQ APIs
-	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(ctx, queryData.Value, svcAcc)
+	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(spanCtx, queryData.Value, svcAcc)
 	if err != nil {
 		// SQL query with reference to destination table such as DML and self joins will have dependency
 		// cycle on dry run since the table might not be available yet. We check the error from BQ
@@ -440,17 +448,18 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	}
 
 	if len(response.Dependencies) == 0 {
+		span.AddEvent("Unable to get dependencies, query tables on regex")
 		// stmt could be BQ script, find table names using regex and create
 		// fake Select STMTs to find actual referenced tables
 
 		resultChan := make(chan []string)
-		eg, apiCtx := errgroup.WithContext(ctx) // it will stop executing further after first error
+		eg, apiCtx := errgroup.WithContext(spanCtx) // it will stop executing further after first error
 		for _, tableName := range parsedDependencies {
 			fakeQuery := fmt.Sprintf(FakeSelectStmt, tableName)
 			// find dependencies in parallel
 			eg.Go(func() error {
 				//prepare dummy query
-				deps, err := b.FindDependenciesWithRetryableDryRun(ctx, fakeQuery, svcAcc)
+				deps, err := b.FindDependenciesWithRetryableDryRun(spanCtx, fakeQuery, svcAcc)
 				if err != nil {
 					return err
 				}
@@ -523,6 +532,8 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 // this also means that otherwise valid reference to "dataset.table"
 // will not be recognised.
 func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, queryString string, destination string) ([]string, []string, error) {
+	_, span := StartChildSpan(ctx, "FindDependenciesWithRegex")
+	defer span.End()
 
 	tablesFound := make(map[string]bool)
 	pseudoTables := make(map[string]bool)
@@ -590,12 +601,15 @@ func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, queryString strin
 }
 
 func (b *BQ2BQ) FindDependenciesWithRetryableDryRun(ctx context.Context, query, svcAccSecret string) ([]string, error) {
+	spanCtx, span := StartChildSpan(ctx, "FindDependenciesWithRetryableDryRun")
+	defer span.End()
+
 	for try := 1; try <= MaxBQApiRetries; try++ {
-		client, err := b.ClientFac.New(ctx, svcAccSecret)
+		client, err := b.ClientFac.New(spanCtx, svcAccSecret)
 		if err != nil {
 			return nil, errors.New("failed to create bigquery client")
 		}
-		deps, err := b.FindDependenciesWithDryRun(ctx, client, query)
+		deps, err := b.FindDependenciesWithDryRun(spanCtx, client, query)
 		if err != nil {
 			if strings.Contains(err.Error(), "net/http: TLS handshake timeout") ||
 				strings.Contains(err.Error(), "unexpected EOF") ||
@@ -613,6 +627,10 @@ func (b *BQ2BQ) FindDependenciesWithRetryableDryRun(ctx context.Context, query, 
 }
 
 func (b *BQ2BQ) FindDependenciesWithDryRun(ctx context.Context, client bqiface.Client, query string) ([]string, error) {
+	spanCtx, span := StartChildSpan(ctx, "FindDependenciesWithDryRun")
+	defer span.End()
+	span.SetAttributes(attribute.String("kind", "client"), attribute.String("client.type", "bigquery"))
+
 	q := client.Query(query)
 	q.SetQueryConfig(bqiface.QueryConfig{
 		QueryConfig: bigquery.QueryConfig{
@@ -621,7 +639,7 @@ func (b *BQ2BQ) FindDependenciesWithDryRun(ctx context.Context, client bqiface.C
 		},
 	})
 
-	job, err := q.Run(ctx)
+	job, err := q.Run(spanCtx)
 	if err != nil {
 		return nil, fmt.Errorf("query run: %w", err)
 	}
@@ -703,7 +721,19 @@ func (b *BQ2BQ) Cache(request models.GenerateDependenciesRequest, response *mode
 }
 
 func main() {
+	var tracingAddr string
+	flag.StringVar(&tracingAddr, "t", "", "endpoint for traces collector")
+	flag.Parse()
+
+	var cleanupFunc func()
 	plugin.Serve(func(log hclog.Logger) interface{} {
+		var err error
+		log.Info("Telemetry setup with", tracingAddr)
+		cleanupFunc, err = InitTelemetry(log, tracingAddr)
+		if err != nil {
+			log.Warn("Error while telemetry init")
+		}
+
 		return &BQ2BQ{
 			ClientFac:      &DefaultBQClientFactory{},
 			C:              cache.New(CacheTTL, CacheCleanUp),
@@ -711,4 +741,5 @@ func main() {
 			logger:         log,
 		}
 	})
+	cleanupFunc()
 }
