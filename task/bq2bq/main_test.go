@@ -582,7 +582,7 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 				defer job.AssertExpectations(t)
 
 				qry := new(bqQuery)
-				qry.On("Run", ctx).Return(job, nil)
+				qry.On("Run", mock.Anything).Return(job, nil)
 				qry.On("SetQueryConfig", mock.AnythingOfType("bqiface.QueryConfig")).Once()
 				defer qry.AssertExpectations(t)
 
