@@ -18,12 +18,6 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: '1.17'
-      - name: Run GoReleaser for branch [Executor]
-        uses: goreleaser/goreleaser-action@v2.6.1
-        with:
-          distribution: goreleaser
-          version: latest
-          args: -f .goreleaser.executor.yml --snapshot --rm-dist
       - name: Run GoReleaser for branch [Main]
         uses: goreleaser/goreleaser-action@v2.6.1
         with:
