@@ -34,7 +34,7 @@ var (
 
 	// Version should be injected while building
 	Version = "dev"
-	Image   = "docker.io/odpf/optimus-task-bq2bq"
+	Image   = "docker.io/odpf/optimus-task-bq2bq-executor"
 
 	validateName = survey.ComposeValidators(
 		ValidatorFactory.NewFromRegex(`^[a-zA-Z0-9_\-]+$`, `invalid name (can only contain characters A-Z (in either case), 0-9, "-" or "_")`),

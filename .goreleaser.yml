@@ -10,7 +10,7 @@ builds:
     id: "bq2bq"
     binary: "optimus-bq2bq_{{.Os}}_{{.Arch}}"
     ldflags:
-      - -s -w -X main.Version={{.Version}} -X main.Image=docker.io/odpf/optimus-task-bq2bq
+      - -s -w -X main.Version={{.Version}} -X main.Image=docker.io/odpf/optimus-task-bq2bq-executor
     goos:
       - linux
       - darwin
@@ -50,14 +50,11 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-    - "docker.io/odpf/optimus-task-bq2bq:latest"
-    - "docker.io/odpf/optimus-task-bq2bq:{{ .Version }}"
-    dockerfile: ./task/bq2bq/Dockerfile
+    - "docker.io/odpf/optimus-task-bq2bq-executor:latest"
+    - "docker.io/odpf/optimus-task-bq2bq-executor:{{ .Version }}"
+    dockerfile: ./task/bq2bq/executor/Dockerfile
     extra_files:
-    - ./entrypoint.sh
-    build_flag_templates:
-      - "--build-arg=OPTIMUS_RELEASE_URL={{ .Env.OPTIMUS_RELEASE_URL }}"
-      - "--build-arg=VERSION={{ .Version }}"
+      - task/bq2bq/executor
 
 brews:
   - name: optimus-plugins-odpf
