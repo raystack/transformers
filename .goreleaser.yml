@@ -1,6 +1,3 @@
-env:
-  - OPTIMUS_RELEASE_URL=https://github.com/odpf/optimus/releases/download/v0.4.0-rc.6/optimus_0.4.0-rc.6_linux_x86_64.tar.gz
-
 before:
   hooks:
     - make test
