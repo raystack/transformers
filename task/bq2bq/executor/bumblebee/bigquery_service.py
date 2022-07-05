@@ -16,7 +16,7 @@ from bumblebee.log import get_logger
 
 logger = get_logger(__name__)
 
-SERVICE_ACCOUNT_VAR = "TASK_BQ2BQ"
+SERVICE_ACCOUNT_VAR = "BQ_SERVICE_ACCOUNT"
 SERVICE_ACCOUNT_TYPE = "service_account"
 
 
@@ -166,7 +166,7 @@ def create_bigquery_service(task_config: TaskConfigFromEnv, labels, writer):
 
 
 def _get_bigquery_credentials():
-    """Gets credentials from the TASK_BQ2BQ environment var else GOOGLE_APPLICATION_CREDENTIALS for file path."""
+    """Gets credentials from the BQ_SERVICE_ACCOUNT environment var else GOOGLE_APPLICATION_CREDENTIALS for file path."""
     scope = ('https://www.googleapis.com/auth/bigquery',
              'https://www.googleapis.com/auth/cloud-platform',
              'https://www.googleapis.com/auth/drive')

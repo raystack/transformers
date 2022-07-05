@@ -630,6 +630,10 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  SecretName,
 						Value: "some_secret",
 					},
+					{
+						Name:  BqServiceAccount,
+						Value: "BQ_ACCOUNT_SECRET",
+					},
 				}),
 			}
 
@@ -661,7 +665,7 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 			defer client.AssertExpectations(t)
 
 			bqClientFac := new(bqClientFactoryMock)
-			bqClientFac.On("New", mock.Anything, "some_secret").Return(client, nil)
+			bqClientFac.On("New", mock.Anything, "BQ_ACCOUNT_SECRET").Return(client, nil)
 			defer bqClientFac.AssertExpectations(t)
 
 			b := &BQ2BQ{
@@ -702,6 +706,10 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  SecretName,
 						Value: "some_secret",
 					},
+					{
+						Name:  BqServiceAccount,
+						Value: "BQ_ACCOUNT_SECRET",
+					},
 				}),
 			}
 
@@ -733,7 +741,7 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 			defer client.AssertExpectations(t)
 
 			bqClientFac := new(bqClientFactoryMock)
-			bqClientFac.On("New", mock.Anything, "some_secret").Return(client, nil)
+			bqClientFac.On("New", mock.Anything, "BQ_ACCOUNT_SECRET").Return(client, nil)
 			defer bqClientFac.AssertExpectations(t)
 
 			b := &BQ2BQ{
@@ -774,6 +782,10 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  SecretName,
 						Value: "some_secret",
 					},
+					{
+						Name:  BqServiceAccount,
+						Value: "BQ_ACCOUNT_SECRET",
+					},
 				}),
 			}
 
@@ -805,7 +817,7 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 			defer client.AssertExpectations(t)
 
 			bqClientFac := new(bqClientFactoryMock)
-			bqClientFac.On("New", mock.Anything, "some_secret").Return(client, nil).Once()
+			bqClientFac.On("New", mock.Anything, "BQ_ACCOUNT_SECRET").Return(client, nil).Once()
 			defer bqClientFac.AssertExpectations(t)
 
 			b := &BQ2BQ{
@@ -863,6 +875,10 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 					{
 						Name:  SecretName,
 						Value: "some_secret",
+					},
+					{
+						Name:  BqServiceAccount,
+						Value: "BQ_ACCOUNT_SECRET",
 					},
 				}),
 			}
@@ -937,7 +953,7 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 			defer client.AssertExpectations(t)
 
 			bqClientFac := new(bqClientFactoryMock)
-			bqClientFac.On("New", mock.Anything, "some_secret").Return(client, nil)
+			bqClientFac.On("New", mock.Anything, "BQ_ACCOUNT_SECRET").Return(client, nil)
 			defer bqClientFac.AssertExpectations(t)
 
 			b := &BQ2BQ{
