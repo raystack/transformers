@@ -60,8 +60,9 @@ var (
 
 	QueryFileName = "query.sql"
 
-	// Required secret
-	SecretName = "TASK_BQ2BQ"
+	// Deprecated
+	SecretName       = "TASK_BQ2BQ"
+	BqServiceAccount = "BQ_SERVICE_ACCOUNT"
 
 	MaxBQApiRetries = 3
 	FakeSelectStmt  = "SELECT * from `%s` WHERE FALSE LIMIT 1"
@@ -405,9 +406,9 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	}
 
 	var svcAcc string
-	accConfig, ok := request.Config.Get(SecretName)
+	accConfig, ok := request.Config.Get(BqServiceAccount)
 	if !ok || len(accConfig.Value) == 0 {
-		span.AddEvent("Required secret not found in config")
+		span.AddEvent("Required secret BQ_SERVICE_ACCOUNT not found in config")
 		// Fallback to project for getting the secret
 		svcAcc, ok = request.Project.Secret.GetByName(SecretName)
 		if !ok || len(svcAcc) == 0 {
