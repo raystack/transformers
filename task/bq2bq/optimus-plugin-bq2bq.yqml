@@ -1,0 +1,69 @@
+name: bq2bq
+description: BigQuery to BigQuery transformation task
+plugintype: task
+pluginmods:
+  - cli
+  - dependencyresolver
+pluginversion: 0.1.0-SNAPSHOT-27cb56f
+apiversion: []
+image: docker.io/odpf/optimus-task-bq2bq-executor:0.1.0-SNAPSHOT-27cb56f
+secretpath: /tmp/auth.json
+dependson: []
+hooktype: ""
+
+questions:
+  - name: PROJECT
+    prompt: Project ID
+    help: Destination bigquery project ID
+    regexp: ^[a-zA-Z0-9_\-]+$
+    validationerror: invalid name (can only contain characters A-Z (in either case), 0-9, hyphen(-) or underscore (_)
+    minlength: 3
+  - name: DATASET
+    prompt: Dataset Name
+    help: Destination bigquery dataset ID
+    regexp: ^[a-zA-Z0-9_\-]+$
+    validationerror: invalid name (can only contain characters A-Z (in either case), 0-9, hyphen(-) or underscore (_)
+    minlength: 3
+  - name: TABLE
+    prompt: Table ID
+    help: Destination bigquery table ID
+    regexp: ^[a-zA-Z0-9_-]+$
+    validationerror: invalid table name (can only contain characters A-Z (in either case), 0-9, hyphen(-) or underscore (_)
+    minlength: 3
+    maxlength: 1024
+  - name: SQL_TYPE
+    prompt: SQL Type
+    help : Sql Type
+    minlength: 3
+    required: true
+    default: STANDARD
+    multiselect:
+      - STANDARD
+  - name: LOAD_METHOD
+    prompt: Load method to use on destination
+    help: |
+      APPEND        - Append to existing table
+      REPLACE       - Deletes existing partition and insert result of select query
+      MERGE         - DML statements, BQ scripts
+      REPLACE_MERGE - [Experimental] Advanced replace using merge query
+    default: APPEND
+    multiselect:
+      - APPEND
+      - REPLACE
+      - MERGE
+      - REPLACE_MERGE
+      - REPLACE_ALL
+    subquestions:
+      - ifvalue: REPLACE_MERGE
+        questions:
+          - name: PARTITION_FILTER
+            prompt: Partition filter expression
+            help: "\nWhere condition over partitioned column used to delete existing partitions\nin destination table. These partitions will be replaced with sql query result.\nLeave empty for optimus to automatically figure this out although it will be \nfaster and cheaper to provide the exact condition.\nfor example: DATE(event_timestamp) >= \"{{ .DSTART|Date }}\" AND DATE(event_timestamp) < \"{{ .DEND|Date }}\""
+            required: true
+
+defaultassets:
+  - name: query.sql
+    value: |
+      -- SQL query goes here
+
+      Select * from "project.dataset.table";
