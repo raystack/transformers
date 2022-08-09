@@ -499,9 +499,13 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	}
 
 	// before returning wrap dependencies with datastore type
-	var dependencies []string
+	dedupDependency := make(map[string]int)
 	for _, dependency := range response.Dependencies {
-		dependencies = append(dependencies, fmt.Sprintf(models.DestinationURNFormat, selfTable.Type, dependency))
+		dedupDependency[fmt.Sprintf(models.DestinationURNFormat, selfTable.Type, dependency)] = 0
+	}
+	var dependencies []string
+	for dependency := range dedupDependency {
+		dependencies = append(dependencies, dependency)
 	}
 	response.Dependencies = dependencies
 

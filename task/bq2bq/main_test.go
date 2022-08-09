@@ -680,6 +680,87 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 				t.Errorf("got = %v, want %v", got, expectedDeps)
 			}
 		})
+		t.Run("should generate unique dependencies using BQ APIs for select statements", func(t *testing.T) {
+			expectedDeps := []string{"bigquery://proj:dataset.table1"}
+			data := models.GenerateDependenciesRequest{
+				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+					{
+						Name:  QueryFileName,
+						Value: "Select * from proj.dataset.table1 t1 join proj.dataset.table1 t2 on t1.col1 = t2.col1",
+					},
+				})),
+				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+					{
+						Name:  "PROJECT",
+						Value: "proj",
+					},
+					{
+						Name:  "DATASET",
+						Value: "datas",
+					},
+					{
+						Name:  "TABLE",
+						Value: "tab",
+					},
+					{
+						Name:  SecretName,
+						Value: "some_secret",
+					},
+					{
+						Name:  BqServiceAccount,
+						Value: "BQ_ACCOUNT_SECRET",
+					},
+				}),
+			}
+
+			job := new(bqJob)
+			job.On("LastStatus").Return(&bigquery.JobStatus{
+				Errors: nil,
+				Statistics: &bigquery.JobStatistics{
+					Details: &bigquery.QueryStatistics{
+						ReferencedTables: []*bigquery.Table{
+							{
+								ProjectID: "proj",
+								DatasetID: "dataset",
+								TableID:   "table1",
+							},
+							{
+								ProjectID: "proj",
+								DatasetID: "dataset",
+								TableID:   "table1",
+							},
+						},
+					},
+				},
+			})
+			defer job.AssertExpectations(t)
+
+			qry := new(bqQuery)
+			qry.On("Run", mock.Anything).Return(job, nil)
+			qry.On("SetQueryConfig", mock.AnythingOfType("bqiface.QueryConfig")).Once()
+			defer qry.AssertExpectations(t)
+
+			client := new(bqClientMock)
+			qf, _ := data.Assets.Get(QueryFileName)
+			client.On("Query", qf.Value).Return(qry)
+			defer client.AssertExpectations(t)
+
+			bqClientFac := new(bqClientFactoryMock)
+			bqClientFac.On("New", mock.Anything, "BQ_ACCOUNT_SECRET").Return(client, nil)
+			defer bqClientFac.AssertExpectations(t)
+
+			b := &BQ2BQ{
+				ClientFac: bqClientFac,
+			}
+			got, err := b.GenerateDependencies(ctx, data)
+			if err != nil {
+				t.Errorf("error = %v", err)
+				return
+			}
+			if !reflect.DeepEqual(got.Dependencies, expectedDeps) {
+				t.Errorf("got = %v, want %v", got, expectedDeps)
+			}
+		})
 		t.Run("should generate dependencies using BQ APIs for select statements but ignore if asked explicitly", func(t *testing.T) {
 			var expectedDeps []string
 			data := models.GenerateDependenciesRequest{
