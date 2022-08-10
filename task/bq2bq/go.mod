@@ -8,7 +8,7 @@ require (
 	github.com/googleapis/google-cloud-go-testing v0.0.0-20210719221736-1c9a4c676720
 	github.com/hashicorp/go-hclog v1.2.0
 	github.com/mitchellh/hashstructure/v2 v2.0.2
-	github.com/odpf/optimus v0.2.2-0.20220606050552-243f0c02d055
+	github.com/odpf/optimus v0.3.2
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/spf13/cast v1.4.1
 	github.com/stretchr/testify v1.7.1
@@ -66,7 +66,7 @@ require (
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
-	github.com/odpf/salt v0.0.0-20220224163336-9b41552dde37 // indirect
+	github.com/odpf/salt v0.0.0-20220614042821-c5613a78b4d6 // indirect
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/pelletier/go-toml v1.9.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
