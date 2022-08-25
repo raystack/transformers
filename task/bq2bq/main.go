@@ -64,6 +64,7 @@ var (
 	SecretName       = "TASK_BQ2BQ"
 	BqServiceAccount = "BQ_SERVICE_ACCOUNT"
 
+	TimeoutDuration = time.Second * 180
 	MaxBQApiRetries = 3
 	FakeSelectStmt  = "SELECT * from `%s` WHERE FALSE LIMIT 1"
 
@@ -436,6 +437,26 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	if err != nil {
 		return response, err
 	}
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, TimeoutDuration)
+	defer cancel()
+
+	// try to resolve referenced tables for ignoredDependencies
+	var ignoredDependenciesReferencedTables []string
+	for _, tableName := range ignoredDependencies {
+		// ignore the tables with :
+		if strings.Contains(tableName, ":") { // project:dataset.table
+			continue
+		}
+		// find referenced tables and add it to ignoredDependenciesReferencedTables
+		fakeQuery := fmt.Sprintf(FakeSelectStmt, tableName)
+		deps, err := b.FindDependenciesWithRetryableDryRun(timeoutCtx, fakeQuery, svcAcc)
+		if err != nil {
+			return response, err
+		}
+		ignoredDependenciesReferencedTables = append(ignoredDependenciesReferencedTables, deps...)
+	}
+	ignoredDependencies = append(ignoredDependencies, ignoredDependenciesReferencedTables...)
 
 	// try to resolve referenced tables directly from BQ APIs
 	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(spanCtx, queryData.Value, svcAcc)
