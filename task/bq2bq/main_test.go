@@ -811,14 +811,149 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 			})
 			defer job.AssertExpectations(t)
 
+			jobTableReferenceTables := new(bqJob)
+			jobTableReferenceTables.On("LastStatus").Return(&bigquery.JobStatus{
+				Errors: nil,
+				Statistics: &bigquery.JobStatistics{
+					Details: &bigquery.QueryStatistics{
+						ReferencedTables: []*bigquery.Table{
+							{
+								ProjectID: "proj",
+								DatasetID: "dataset",
+								TableID:   "table1",
+							},
+						},
+					},
+				},
+			})
+			defer jobTableReferenceTables.AssertExpectations(t)
+
 			qry := new(bqQuery)
 			qry.On("Run", mock.Anything).Return(job, nil)
 			qry.On("SetQueryConfig", mock.AnythingOfType("bqiface.QueryConfig")).Once()
 			defer qry.AssertExpectations(t)
 
+			qryTableReferenceTables := new(bqQuery)
+			qryTableReferenceTables.On("Run", mock.Anything).Return(jobTableReferenceTables, nil)
+			qryTableReferenceTables.On("SetQueryConfig", mock.AnythingOfType("bqiface.QueryConfig")).Once()
+			defer qry.AssertExpectations(t)
+
 			client := new(bqClientMock)
 			qf, _ := data.Assets.Get(QueryFileName)
 			client.On("Query", qf.Value).Return(qry)
+			client.On("Query", "SELECT * from `proj.dataset.table1` WHERE FALSE LIMIT 1").Return(qryTableReferenceTables)
+			defer client.AssertExpectations(t)
+
+			bqClientFac := new(bqClientFactoryMock)
+			bqClientFac.On("New", mock.Anything, "some_secret").Return(client, nil)
+			defer bqClientFac.AssertExpectations(t)
+
+			b := &BQ2BQ{
+				ClientFac: bqClientFac,
+			}
+			got, err := b.GenerateDependencies(context.Background(), data)
+			if err != nil {
+				t.Errorf("error = %v", err)
+				return
+			}
+			if !reflect.DeepEqual(got.Dependencies, expectedDeps) {
+				t.Errorf("got = %v, want %v", got, expectedDeps)
+			}
+		})
+		t.Run("should generate dependencies using BQ APIs for select statements but ignore if asked explicitly for view", func(t *testing.T) {
+			expectedDeps := []string{"bigquery://proj:dataset.table1"}
+			data := models.GenerateDependenciesRequest{
+				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+					{
+						Name:  QueryFileName,
+						Value: "Select * from proj.dataset.table1 t1 left join /* @ignoreupstream */ proj.dataset.view1 v1 on t1.date=v1.date",
+					},
+				})),
+				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+					{
+						Name:  "PROJECT",
+						Value: "proj",
+					},
+					{
+						Name:  "DATASET",
+						Value: "datas",
+					},
+					{
+						Name:  "TABLE",
+						Value: "tab",
+					},
+				}),
+				Project: models.ProjectSpec{Secret: models.ProjectSecrets{
+					{
+						Name:  SecretName,
+						Value: "some_secret",
+					},
+				}},
+			}
+
+			job := new(bqJob)
+			job.On("LastStatus").Return(&bigquery.JobStatus{
+				Errors: nil,
+				Statistics: &bigquery.JobStatistics{
+					Details: &bigquery.QueryStatistics{
+						ReferencedTables: []*bigquery.Table{
+							{
+								ProjectID: "proj",
+								DatasetID: "dataset",
+								TableID:   "table1",
+							},
+							{
+								ProjectID: "proj",
+								DatasetID: "dataset",
+								TableID:   "viewtable1",
+							},
+							{
+								ProjectID: "proj",
+								DatasetID: "dataset",
+								TableID:   "viewtable2",
+							},
+						},
+					},
+				},
+			})
+
+			jobViewReferenceTables := new(bqJob)
+			jobViewReferenceTables.On("LastStatus").Return(&bigquery.JobStatus{
+				Errors: nil,
+				Statistics: &bigquery.JobStatistics{
+					Details: &bigquery.QueryStatistics{
+						ReferencedTables: []*bigquery.Table{
+							{
+								ProjectID: "proj",
+								DatasetID: "dataset",
+								TableID:   "viewtable1",
+							},
+							{
+								ProjectID: "proj",
+								DatasetID: "dataset",
+								TableID:   "viewtable2",
+							},
+						},
+					},
+				},
+			})
+
+			defer job.AssertExpectations(t)
+
+			qry := new(bqQuery)
+			qry.On("Run", mock.Anything).Return(job, nil)
+			qry.On("SetQueryConfig", mock.AnythingOfType("bqiface.QueryConfig")).Once()
+			defer qry.AssertExpectations(t)
+
+			qryViewReferenceTables := new(bqQuery)
+			qryViewReferenceTables.On("Run", mock.Anything).Return(jobViewReferenceTables, nil)
+			qryViewReferenceTables.On("SetQueryConfig", mock.AnythingOfType("bqiface.QueryConfig")).Once()
+			defer qry.AssertExpectations(t)
+
+			client := new(bqClientMock)
+			qf, _ := data.Assets.Get(QueryFileName)
+			client.On("Query", qf.Value).Return(qry)
+			client.On("Query", "SELECT * from `proj.dataset.view1` WHERE FALSE LIMIT 1").Return(qryViewReferenceTables)
 			defer client.AssertExpectations(t)
 
 			bqClientFac := new(bqClientFactoryMock)
