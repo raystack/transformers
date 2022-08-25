@@ -845,7 +845,7 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 			defer client.AssertExpectations(t)
 
 			bqClientFac := new(bqClientFactoryMock)
-			bqClientFac.On("New", mock.Anything, "some_secret").Return(client, nil)
+			bqClientFac.On("New", mock.Anything, "BQ_ACCOUNT_SECRET").Return(client, nil)
 			defer bqClientFac.AssertExpectations(t)
 
 			b := &BQ2BQ{
@@ -957,7 +957,7 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 			defer client.AssertExpectations(t)
 
 			bqClientFac := new(bqClientFactoryMock)
-			bqClientFac.On("New", mock.Anything, "BQ_ACCOUNT_SECRET").Return(client, nil)
+			bqClientFac.On("New", mock.Anything, "some_secret").Return(client, nil)
 			defer bqClientFac.AssertExpectations(t)
 
 			b := &BQ2BQ{
