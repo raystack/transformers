@@ -27,14 +27,6 @@ questions:
     case), 0-9, hyphen(-) or underscore (_)
   minlength: 3
   maxlength: 1024
-- name: SQL_TYPE
-  prompt: SQL Type
-  help: Sql Type
-  default: STANDARD
-  multiselect:
-  - STANDARD
-  minlength: 3
-  required: true
 - name: LOAD_METHOD
   prompt: Load method to use on destination
   help: |
@@ -60,6 +52,9 @@ questions:
         and cheaper to provide the exact condition.\nfor example: DATE(event_timestamp)
         >= \"{{ .DSTART|Date }}\" AND DATE(event_timestamp) < \"{{ .DEND|Date }}\""
       required: true
+defaultconfig:
+- name: SQL_TYPE
+  value: STANDARD 
 defaultassets:
 - name: query.sql
   value: |-
