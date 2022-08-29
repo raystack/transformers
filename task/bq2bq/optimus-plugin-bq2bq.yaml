@@ -1,9 +1,6 @@
 name: bq2bq
 description: BigQuery to BigQuery transformation task
 plugintype: task
-pluginmods:
-- cli
-- dependencyresolver
 pluginversion: latest
 image: docker.io/odpf/optimus-task-bq2bq-executor
 secretpath: /tmp/auth.json
