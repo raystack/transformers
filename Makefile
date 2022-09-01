@@ -15,7 +15,7 @@ build-gorelease: ## build everything with goreleaser
 
 install: ## install plugin to optimus directory
 	mkdir -p ~/.optimus/plugins
-	cp ./dist/bq2bq_darwin_amd64/* ~/.optimus/plugins/
+	cp ./dist/bq2bq_darwin_amd64_v1/* ~/.optimus/plugins/
 
 clean: ## clean binaries
 	rm -rf ./dist

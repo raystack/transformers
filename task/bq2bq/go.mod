@@ -1,6 +1,6 @@
 module github.com/odpf/transformers/task/bq2bq
 
-go 1.17
+go 1.18
 
 require (
 	cloud.google.com/go/bigquery v1.31.0
