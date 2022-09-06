@@ -158,7 +158,7 @@ func TestBQ2BQ(t *testing.T) {
 						Value: `Select * from table where ts > "{{.DSTART}}"`,
 					},
 				},
-				InstanceData: []models.InstanceSpecData{},
+				InstanceData: []models.JobRunSpecData{},
 			}
 			b2b := &BQ2BQ{}
 			resp, err := b2b.CompileAssets(ctx, compileRequest)
@@ -187,7 +187,7 @@ func TestBQ2BQ(t *testing.T) {
 						Value: `Select * from table where ts > "{{.DSTART}}"`,
 					},
 				},
-				InstanceData: []models.InstanceSpecData{},
+				InstanceData: []models.JobRunSpecData{},
 				StartTime:    startTime,
 				EndTime:      endTime,
 			}
@@ -220,7 +220,7 @@ func TestBQ2BQ(t *testing.T) {
 						Value: `Select * from table where ts > "{{.DSTART}}"`,
 					},
 				},
-				InstanceData: []models.InstanceSpecData{},
+				InstanceData: []models.JobRunSpecData{},
 				StartTime:    startTime,
 				EndTime:      endTime,
 			}
