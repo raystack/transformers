@@ -144,7 +144,6 @@ func (fac *bqClientFactoryMock) New(ctx context.Context, svcAcc string) (bqiface
 func TestBQ2BQ(t *testing.T) {
 	ctx := context.Background()
 	t.Run("CompileAssets", func(t *testing.T) {
-		scheduledAt := time.Date(2021, 1, 15, 2, 2, 2, 2, time.UTC)
 		t.Run("should not compile assets if load method is not replace", func(t *testing.T) {
 			compileRequest := models.CompileAssetsRequest{
 				Config: models.PluginConfigs{
@@ -159,8 +158,7 @@ func TestBQ2BQ(t *testing.T) {
 						Value: `Select * from table where ts > "{{.DSTART}}"`,
 					},
 				},
-				InstanceData:     []models.InstanceSpecData{},
-				InstanceSchedule: scheduledAt,
+				InstanceData: []models.JobRunSpecData{},
 			}
 			b2b := &BQ2BQ{}
 			resp, err := b2b.CompileAssets(ctx, compileRequest)
@@ -171,6 +169,8 @@ func TestBQ2BQ(t *testing.T) {
 			assert.Equal(t, compAsset.Value, respAsset.Value)
 		})
 		t.Run("should not compile assets if load method is replace but window size is less than equal partition delta", func(t *testing.T) {
+			startTime := time.Date(2022, 5, 1, 0, 0, 0, 0, time.UTC)
+			endTime := time.Date(2022, 5, 2, 0, 0, 0, 0, time.UTC)
 			compileRequest := models.CompileAssetsRequest{
 				PluginOptions: models.PluginOptions{
 					DryRun: false,
@@ -181,19 +181,15 @@ func TestBQ2BQ(t *testing.T) {
 						Value: "REPLACE",
 					},
 				},
-				Window: models.JobSpecTaskWindow{
-					Size:       time.Hour * 24,
-					Offset:     0,
-					TruncateTo: "w",
-				},
 				Assets: models.PluginAssets{
 					{
 						Name:  "query.sql",
 						Value: `Select * from table where ts > "{{.DSTART}}"`,
 					},
 				},
-				InstanceData:     []models.InstanceSpecData{},
-				InstanceSchedule: scheduledAt,
+				InstanceData: []models.JobRunSpecData{},
+				StartTime:    startTime,
+				EndTime:      endTime,
 			}
 			b2b := &BQ2BQ{
 				TemplateEngine: compiler.NewGoEngine(),
@@ -206,6 +202,8 @@ func TestBQ2BQ(t *testing.T) {
 			assert.Equal(t, compAsset.Value, respAsset.Value)
 		})
 		t.Run("should compile assets if load method is replace and break the query into multiple parts", func(t *testing.T) {
+			startTime := time.Date(2021, 1, 10, 0, 0, 0, 0, time.UTC)
+			endTime := time.Date(2021, 1, 17, 0, 0, 0, 0, time.UTC)
 			compileRequest := models.CompileAssetsRequest{
 				PluginOptions: models.PluginOptions{
 					DryRun: false,
@@ -216,19 +214,15 @@ func TestBQ2BQ(t *testing.T) {
 						Value: "REPLACE",
 					},
 				},
-				Window: models.JobSpecTaskWindow{
-					Size:       time.Hour * 24 * 7,
-					Offset:     0,
-					TruncateTo: "w",
-				},
 				Assets: models.PluginAssets{
 					{
 						Name:  "query.sql",
 						Value: `Select * from table where ts > "{{.DSTART}}"`,
 					},
 				},
-				InstanceData:     []models.InstanceSpecData{},
-				InstanceSchedule: scheduledAt,
+				InstanceData: []models.JobRunSpecData{},
+				StartTime:    startTime,
+				EndTime:      endTime,
 			}
 			b2b := &BQ2BQ{
 				TemplateEngine: compiler.NewGoEngine(),

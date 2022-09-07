@@ -303,8 +303,8 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 		start time.Time
 		end   time.Time
 	}
-	dstart := req.Window.GetStart(req.InstanceSchedule)
-	dend := req.Window.GetEnd(req.InstanceSchedule)
+	dstart := req.StartTime
+	dend := req.EndTime
 	for currentPart := dstart; currentPart.Before(dend); currentPart = currentPart.Add(partitionDelta) {
 		destinationsPartitions = append(destinationsPartitions, struct {
 			start time.Time
