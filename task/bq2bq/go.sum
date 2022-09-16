@@ -787,6 +787,7 @@ github.com/gorilla/handlers v1.4.2/go.mod h1:Qkdc/uu4tH4g6mTK6auzZ766c4CA0Ng8+o/
 github.com/gorilla/mux v1.7.2/go.mod h1:1lud6UwP+6orDFRuTfBEV8e9/aOM/c4fVVCaMa2zaAs=
 github.com/gorilla/mux v1.7.3/go.mod h1:1lud6UwP+6orDFRuTfBEV8e9/aOM/c4fVVCaMa2zaAs=
 github.com/gorilla/mux v1.7.4/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
+github.com/gorilla/mux v1.8.0 h1:i40aqfkR1h2SlN9hojwV5ZA91wcXFOvkdNIeFDP5koI=
 github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
 github.com/gorilla/websocket v0.0.0-20170926233335-4201258b820c/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
 github.com/gorilla/websocket v1.4.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
@@ -1171,8 +1172,8 @@ github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLA
 github.com/nishanths/predeclared v0.0.0-20200524104333-86fad755b4d3/go.mod h1:nt3d53pc1VYcphSCIaYAJtnPYnr3Zyn8fMq2wvPGPso=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
-github.com/odpf/optimus v0.4.0-rc.2 h1:VcyaPlGrow9UEoCxrGaUeR/7IuNq3FtTykoz/snCQ18=
-github.com/odpf/optimus v0.4.0-rc.2/go.mod h1:0pZ60OYsxu/zmrstrRoMDzpYBgZLa7fgF0XUthJ8zPk=
+github.com/odpf/optimus v0.4.0-rc.3 h1:KPctEkoQtgBF96nuvR53RPMKCJVpmfcjf2f+hnC6pIk=
+github.com/odpf/optimus v0.4.0-rc.3/go.mod h1:0pZ60OYsxu/zmrstrRoMDzpYBgZLa7fgF0XUthJ8zPk=
 github.com/odpf/salt v0.0.0-20220614042821-c5613a78b4d6 h1:ZPATgfcee1Vn2h9Ea6A0MsqgoUCKvN3AwYOaudi6X/s=
 github.com/odpf/salt v0.0.0-20220614042821-c5613a78b4d6/go.mod h1:ZY9yXIHZYlYbQGKV5WSGmyYnw+NtQEzl6z0Tj0dto8M=
 github.com/oklog/run v1.0.0/go.mod h1:dlhp/R75TPv97u0XWUtDeV/lRKWPKSdTuV0TZvrmrQA=
