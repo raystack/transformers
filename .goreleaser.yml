@@ -1,5 +1,5 @@
 env:
-  - OPTIMUS_RELEASE_URL=https://github.com/odpf/optimus/releases/download/v0.3.8/optimus_0.3.8_linux_x86_64.tar.gz
+  - OPTIMUS_RELEASE_URL=https://github.com/odpf/optimus/releases/download/v0.4.0-rc.2/optimus_0.4.0-rc.2_linux_x86_64.tar.gz
 
 before:
   hooks:
