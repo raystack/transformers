@@ -3,7 +3,6 @@ description: BigQuery to BigQuery transformation task
 plugintype: task
 pluginversion: latest
 image: docker.io/odpf/optimus-task-bq2bq-executor
-secretpath: /tmp/auth.json
 questions:
 - name: PROJECT
   prompt: Project ID

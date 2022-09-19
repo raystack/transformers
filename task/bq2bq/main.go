@@ -102,7 +102,6 @@ func (b *BQ2BQ) PluginInfo() (*models.PluginInfoResponse, error) {
 		Name:          Name,
 		Description:   "BigQuery to BigQuery transformation task",
 		Image:         fmt.Sprintf("%s:%s", Image, Version),
-		SecretPath:    "/tmp/auth.json",
 		PluginVersion: Version,
 		PluginType:    models.PluginTypeTask,
 		PluginMods:    []models.PluginMod{models.ModTypeCLI, models.ModTypeDependencyResolver},
