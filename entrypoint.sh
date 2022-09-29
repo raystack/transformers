@@ -8,7 +8,7 @@ echo "-- optimus client version"
 
 # get resources
 echo "-- initializing optimus assets"
-/opt/optimus job run-input instance "$JOB_NAME" --project-name \
+/opt/optimus job run-input "$JOB_NAME" --project-name \
 	"$PROJECT" --output-dir "$JOB_DIR" \
 	--type "$INSTANCE_TYPE" --name "$INSTANCE_NAME" \
 	--scheduled-at "$SCHEDULED_AT" --host "$OPTIMUS_HOST"
