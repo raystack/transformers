@@ -194,6 +194,19 @@ class TestConfig(TestCase):
 
         self.assertEqual("config 'PROJECT' must be provided", str(ex.exception))
 
+    def test_allow_field_addition(self):
+        self.set_vars_with_default()
+        os.environ['ALLOW_FIELD_ADDITION'] = "TRUE"
+
+        config = TaskConfigFromEnv()
+        self.assertEqual(True, config.allow_field_addition)
+
+    def test_allow_field_addition_should_be_false_by_default(self):
+        self.set_vars_with_default()
+
+        config = TaskConfigFromEnv()
+        self.assertEqual(False, config.allow_field_addition)
+
 
 class TestTaskFiles(TestCase):
 

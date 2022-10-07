@@ -219,7 +219,8 @@ class TableTransformation:
         self.execution_time = execution_time
 
     def transform(self):
-        loader = TableLoader(self.bigquery_service, self.task_config.destination_table, self.task_config.load_method)
+        loader = TableLoader(self.bigquery_service, self.task_config.destination_table, self.task_config.load_method,
+                             self.task_config.allow_field_addition)
         logger.info("create transformation for table")
 
         task = PartitionTransformation(self.task_config,
@@ -411,7 +412,8 @@ class MultiPartitionTransformation:
 
             logger.info("create transformation for partition: {}".format(destination_partition))
             task_loader = PartitionLoader(self.bigquery_service, self.task_config.destination_table,
-                                          self.task_config.load_method, destination_partition)
+                                          self.task_config.load_method, destination_partition,
+                                          self.task_config.allow_field_addition)
 
             task = PartitionTransformation(self.task_config,
                                            task_loader,
