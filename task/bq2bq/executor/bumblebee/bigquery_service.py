@@ -33,7 +33,7 @@ class BaseBigqueryService(ABC):
                        destination_table=None,
                        write_disposition=None,
                        create_disposition=CreateDisposition.CREATE_NEVER,
-                       allow_field_addition=None):
+                       allow_field_addition=False):
         pass
 
     @abstractmethod
@@ -222,7 +222,7 @@ class DummyService(BaseBigqueryService):
         return []
 
     def transform_load(self, query, source_project_id=None, destination_table=None, write_disposition=None,
-                       create_disposition=CreateDisposition.CREATE_NEVER, allow_field_addition=None):
+                       create_disposition=CreateDisposition.CREATE_NEVER, allow_field_addition=False):
         log = """ transform and load with config :
         {}
         {}

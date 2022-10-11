@@ -117,7 +117,7 @@ class TestConfig(TestCase):
     def test_localise_datetime(self):
         tzname = "Asia/Jakarta"
         start_time = datetime(2019, 1, 1)
-        localised_start_time = localise_datetime(start_time,tzname)
+        localised_start_time = localise_datetime(start_time, tzname)
 
         expected_start_time = self.timezone.localize(datetime(year=2019, month=1, day=1))
         self.assertEqual(expected_start_time,localised_start_time)
@@ -196,10 +196,11 @@ class TestConfig(TestCase):
 
     def test_allow_field_addition(self):
         self.set_vars_with_default()
-        os.environ['ALLOW_FIELD_ADDITION'] = "TRUE"
+        os.environ['ALLOW_FIELD_ADDITION'] = 'true'
 
         config = TaskConfigFromEnv()
         self.assertEqual(True, config.allow_field_addition)
+        del os.environ['ALLOW_FIELD_ADDITION']
 
     def test_allow_field_addition_should_be_false_by_default(self):
         self.set_vars_with_default()
@@ -240,8 +241,8 @@ class TestTaskFiles(TestCase):
         fs.exist.assert_has_calls([call(query_sql_file)])
         fs.read.assert_has_calls([call(query_sql_file)])
 
-        self.assertEqual(task_files.query,"content")
-        self.assertEqual(task_files.spillover_query,"content")
+        self.assertEqual(task_files.query, "content")
+        self.assertEqual(task_files.spillover_query, "content")
 
 
 class TestLoadMethod(TestCase):
