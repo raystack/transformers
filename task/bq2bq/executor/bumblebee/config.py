@@ -125,6 +125,7 @@ class TaskConfigFromEnv(TaskConfig):
         self._timezone = _validate_timezone_exist(get_env_config("TIMEZONE", default="UTC"))
         self._use_spillover = _bool_from_str(get_env_config("USE_SPILLOVER", default="true"))
         self._concurrency = _validate_greater_than_zero(int(get_env_config("CONCURRENCY", default=1)))
+        self._allow_field_addition = _bool_from_str(get_env_config("ALLOW_FIELD_ADDITION", default="false"))
 
     @property
     def destination_project(self) -> str:
@@ -137,6 +138,10 @@ class TaskConfigFromEnv(TaskConfig):
     @property
     def destination_dataset(self) -> str:
         return self._destination_dataset
+
+    @property
+    def allow_field_addition(self) -> bool:
+        return self._allow_field_addition
 
     @property
     def destination_table_name(self) -> str:
@@ -342,6 +347,7 @@ class TaskConfigFromFile(TaskConfig):
 
         self._use_spillover = _bool_from_str(self._get_property_or_default("USE_SPILLOVER", "true"))
         self._concurrency = _validate_greater_than_zero(int(self._get_property_or_default("CONCURRENCY", 1)))
+        self._allow_field_addition = _bool_from_str(self._get_property_or_default("ALLOW_FIELD_ADDITION", "false"))
 
     @property
     def sql_type(self) -> str:
@@ -401,6 +407,10 @@ class TaskConfigFromFile(TaskConfig):
     @property
     def filter_expression(self) -> str:
         return self._filter_expression
+
+    @property
+    def allow_field_addition(self) -> bool:
+        return self._allow_field_addition
 
     def print(self):
         logger.info("task config:\n{}".format(

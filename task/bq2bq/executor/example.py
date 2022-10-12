@@ -1,5 +1,6 @@
 from bumblebee.bq2bq import bq2bq
 from datetime import datetime, timezone
+import os
 
 execution_date = datetime.utcnow()
 
@@ -202,4 +203,17 @@ def replace_all():
     )
 
 
-replace_all()
+def allow_field_addition():
+    bq2bq(
+        DEFAULT_PATH + "/samples/tasks/allow_field_addition/basic/properties.cfg",
+        DEFAULT_PATH + "/samples/tasks/allow_field_addition/basic/query.sql",
+        None,
+        datetime(2021, 9, 1, 1),
+        datetime(2021, 9, 2, 1),
+        execution_date,
+        False
+    )
+
+
+DEFAULT_PATH = os.path.dirname(os.path.realpath(__file__))
+allow_field_addition()

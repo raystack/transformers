@@ -32,7 +32,8 @@ class BaseBigqueryService(ABC):
                        source_project_id=None,
                        destination_table=None,
                        write_disposition=None,
-                       create_disposition=CreateDisposition.CREATE_NEVER):
+                       create_disposition=CreateDisposition.CREATE_NEVER,
+                       allow_field_addition=False):
         pass
 
     @abstractmethod
@@ -94,7 +95,8 @@ class BigqueryService(BaseBigqueryService):
                        source_project_id=None,
                        destination_table=None,
                        write_disposition=None,
-                       create_disposition=CreateDisposition.CREATE_NEVER):
+                       create_disposition=CreateDisposition.CREATE_NEVER,
+                       allow_field_addition=False):
         if query is None or len(query) == 0:
             raise ValueError("query must not be Empty")
 
@@ -103,6 +105,11 @@ class BigqueryService(BaseBigqueryService):
         query_job_config.write_disposition = write_disposition
         query_job_config.use_legacy_sql = False
         query_job_config.labels = self.labels
+        if allow_field_addition:
+            query_job_config.schema_update_options = [
+                bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION,
+                bigquery.SchemaUpdateOption.ALLOW_FIELD_RELAXATION
+            ]
 
         if destination_table is not None:
             table_ref = TableReference.from_string(destination_table)
@@ -160,6 +167,7 @@ def create_bigquery_service(task_config: TaskConfigFromEnv, labels, writer):
     credentials = _get_bigquery_credentials()
     default_query_job_config = QueryJobConfig()
     default_query_job_config.priority = task_config.query_priority
+    default_query_job_config.allow_field_addition = task_config.allow_field_addition
     client = bigquery.Client(project=task_config.execution_project, credentials=credentials, default_query_job_config=default_query_job_config)
     bigquery_service = BigqueryService(client, labels, writer)
     return bigquery_service
@@ -214,7 +222,7 @@ class DummyService(BaseBigqueryService):
         return []
 
     def transform_load(self, query, source_project_id=None, destination_table=None, write_disposition=None,
-                       create_disposition=CreateDisposition.CREATE_NEVER):
+                       create_disposition=CreateDisposition.CREATE_NEVER, allow_field_addition=False):
         log = """ transform and load with config :
         {}
         {}

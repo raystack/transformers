@@ -49,8 +49,9 @@ class TestTransformationTask(TestCase):
             """
 
         bigquery_service.transform_load.assert_called_with(query=final_query,
-                                            write_disposition=WriteDisposition.WRITE_TRUNCATE,
-                                            destination_table="bq_project.playground_dev.abcd$20190101")
+                                                           write_disposition=WriteDisposition.WRITE_TRUNCATE,
+                                                           destination_table="bq_project.playground_dev.abcd$20190101",
+                                                           allow_field_addition=False)
 
     @mock.patch("bumblebee.bigquery_service.BigqueryService")
     def test_table_transform(self, BigqueryServiceMock):
@@ -73,6 +74,7 @@ class TestTransformationTask(TestCase):
         LOAD_METHOD="REPLACE"
                 """
         set_vars_with_default()
+
         task_config = TaskConfigFromEnv()
         localized_start_time = localise_datetime(datetime(2019, 1, 2), task_config.timezone)
         localized_end_time = localise_datetime(datetime(2019, 1, 3), task_config.timezone)
@@ -87,7 +89,8 @@ class TestTransformationTask(TestCase):
 
         bigquery_service.transform_load.assert_called_with(query=final_query,
                                                            write_disposition=WriteDisposition.WRITE_TRUNCATE,
-                                                           destination_table="bq_project.playground_dev.abcd")
+                                                           destination_table="bq_project.playground_dev.abcd",
+                                                           allow_field_addition=False)
 
     @mock.patch("bumblebee.bigquery_service.BigqueryService")
     def test_single_partition_transform_1d_window_0_offset_without_spillover(self, BigqueryServiceMock):
@@ -109,7 +112,8 @@ class TestTransformationTask(TestCase):
 
         bigquery_service.transform_load.assert_called_with(query=final_query,
                                                            write_disposition=WriteDisposition.WRITE_TRUNCATE,
-                                                           destination_table="bq_project.playground_dev.abcd$20190101")
+                                                           destination_table="bq_project.playground_dev.abcd$20190101",
+                                                           allow_field_addition=False)
 
     @mock.patch("bumblebee.bigquery_service.BigqueryService")
     def test_single_partition_transform_2d_window_24h_offset_without_spillover(self, BigqueryServiceMock):
@@ -130,7 +134,8 @@ class TestTransformationTask(TestCase):
 
         bigquery_service.transform_load.assert_called_with(query=final_query,
                                                            write_disposition=WriteDisposition.WRITE_TRUNCATE,
-                                                           destination_table="bq_project.playground_dev.abcd$20190104")
+                                                           destination_table="bq_project.playground_dev.abcd$20190104",
+                                                           allow_field_addition=False)
 
     @mock.patch("bumblebee.bigquery_service.BigqueryService")
     def test_single_partition_transform_7d_window_without_spillover(self, BigqueryServiceMock):
@@ -152,6 +157,7 @@ class TestTransformationTask(TestCase):
             [LOAD]
             LOAD_METHOD="REPLACE"
             """
+
         set_vars_with_default()
         task_config = TaskConfigFromEnv()
         localized_start_time = localise_datetime(datetime(2019, 1, 3), task_config.timezone)
@@ -167,7 +173,8 @@ class TestTransformationTask(TestCase):
 
         bigquery_service.transform_load.assert_called_with(query=final_query,
                                                            write_disposition=WriteDisposition.WRITE_TRUNCATE,
-                                                           destination_table="bq_project.playground_dev.abcd$20190103")
+                                                           destination_table="bq_project.playground_dev.abcd$20190103",
+                                                           allow_field_addition=False)
 
     @mock.patch("bumblebee.bigquery_service.BigqueryService")
     def test_single_partition_transform_2d_with_spillover(self, BigqueryServiceMock):
@@ -189,9 +196,11 @@ class TestTransformationTask(TestCase):
         final_query_2 = """\nselect count(1) from table where date >= '2019-01-04' and date < '2019-01-05'"""
 
         calls = [call(query=final_query_1, write_disposition=WriteDisposition.WRITE_TRUNCATE,
-                      destination_table="bq_project.playground_dev.abcd$20190103"),
+                      destination_table="bq_project.playground_dev.abcd$20190103",
+                      allow_field_addition=False),
                  call(query=final_query_2, write_disposition=WriteDisposition.WRITE_TRUNCATE,
-                      destination_table="bq_project.playground_dev.abcd$20190104")]
+                      destination_table="bq_project.playground_dev.abcd$20190104",
+                      allow_field_addition=False)]
         bigquery_service.transform_load.assert_has_calls(calls, any_order=True)
         self.assertEqual(len(bigquery_service.transform_load.call_args_list), len(calls))
 
@@ -229,6 +238,31 @@ class TestTransformationTask(TestCase):
                                    localized_end_time, dry_run, localized_execution_time)
         task.transform()
         bigquery_service.transform_load.assert_not_called()
+
+
+    @mock.patch("bumblebee.bigquery_service.BigqueryService")
+    def test_allow_field_addition(self, BigqueryServiceMock):
+        query = """select count(1) from table where date >= '__dstart__' and date < '__dend__'"""
+
+        set_vars_with_default()
+        os.environ['ALLOW_FIELD_ADDITION'] = 'true'
+        task_config = TaskConfigFromEnv()
+        del os.environ['ALLOW_FIELD_ADDITION']
+
+        localized_start_time = localise_datetime(datetime(2019, 1, 1), task_config.timezone)
+        localized_end_time = localise_datetime(datetime(2019, 1, 2), task_config.timezone)
+        localized_execution_time = localise_datetime(datetime(2019, 1, 1), task_config.timezone)
+
+        bigquery_service = BigqueryServiceMock()
+        task = TableTransformation(bigquery_service, task_config, query, localized_start_time,
+                                   localized_end_time, False, localized_execution_time)
+        task.transform()
+
+        final_query = """select count(1) from table where date >= '2019-01-01' and date < '2019-01-02'"""
+        bigquery_service.transform_load.assert_called_with(query=final_query,
+                                                           write_disposition=WriteDisposition.WRITE_TRUNCATE,
+                                                           destination_table="bq_project.playground_dev.abcd",
+                                                           allow_field_addition=True)
 
 
 class TestTransformation(TestCase):
@@ -290,7 +324,8 @@ class TestTransformation(TestCase):
         final_query = """select count(1) from table where date >= '2019-02-01' and date < '2019-02-02'"""
         bigquery_service.transform_load.assert_called_with(query=final_query,
                                                    write_disposition=WriteDisposition.WRITE_APPEND,
-                                                   destination_table="bq_project.playground_dev.abcd")
+                                                   destination_table="bq_project.playground_dev.abcd",
+                                                   allow_field_addition=False)
 
     @mock.patch("bumblebee.bigquery_service.BigqueryService")
     def test_table_transform_with_merge_load_method_and_non_partitioned_destination(self, BigqueryServiceMock):
@@ -326,7 +361,8 @@ class TestTransformation(TestCase):
         final_query = """select count(1) from table where date >= '2019-01-03' and date < '2019-01-04'\n"""
         bigquery_service.transform_load.assert_called_with(query=final_query,
                                                            write_disposition=WriteDisposition.WRITE_TRUNCATE,
-                                                           destination_table="bq_project.playground_dev.abcd")
+                                                           destination_table="bq_project.playground_dev.abcd",
+                                                           allow_field_addition=False)
 
     @mock.patch("bumblebee.bigquery_service.BigqueryService")
     def test_should_run_partition_task_on_field(self, BigqueryServiceMock):
