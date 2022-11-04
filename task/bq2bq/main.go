@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/bigquery"
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
 	"github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/hashstructure/v2"
@@ -34,19 +33,6 @@ var (
 
 	// Version should be injected while building
 	Version = "dev"
-	Image   = "docker.io/odpf/optimus-task-bq2bq"
-
-	validateName = survey.ComposeValidators(
-		ValidatorFactory.NewFromRegex(`^[a-zA-Z0-9_\-]+$`, `invalid name (can only contain characters A-Z (in either case), 0-9, "-" or "_")`),
-		survey.MinLength(3),
-	)
-	// a big query table can only contain the the characters [a-zA-Z0-9_].
-	// https://cloud.google.com/bigquery/docs/tables
-	validateTableName = survey.ComposeValidators(
-		ValidatorFactory.NewFromRegex(`^[a-zA-Z0-9_-]+$`, "invalid table name (can only contain characters A-Z (in either case), 0-9, hyphen(-) or underscore (_)"),
-		survey.MaxLength(1024),
-		survey.MinLength(3),
-	)
 
 	tableDestinationPatterns = regexp.MustCompile("" +
 		"(?i)(?:FROM)\\s*(?:/\\*\\s*([a-zA-Z0-9@_-]*)\\s*\\*/)?\\s+`?([\\w-]+)\\.([\\w-]+)\\.([\\w-]+)`?" +
@@ -94,6 +80,10 @@ type BQ2BQ struct {
 	TemplateEngine models.TemplateEngine
 
 	logger hclog.Logger
+}
+
+func (b *BQ2BQ) GetName(ctx context.Context) (string, error) {
+	return Name, nil
 }
 
 func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsRequest) (*models.CompileAssetsResponse, error) {

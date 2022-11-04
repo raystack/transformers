@@ -1217,6 +1217,8 @@ github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
 github.com/odpf/optimus v0.4.0-rc.1.0.20221020114034-e2aa6f26f519 h1:BKaRD2X9zuMglFck0sx7W2ChKIAia/s6tXEaX9pgn7M=
 github.com/odpf/optimus v0.4.0-rc.1.0.20221020114034-e2aa6f26f519/go.mod h1:cFyPTcuz2T6McsAgziB0Yl2LhmvoxPAuYDFXCqd87YI=
+github.com/odpf/optimus v0.4.0-rc.1.0.20221104004748-0a3eadd282ee h1:pde7JdH3QEfx2uyjGoFUvF12LjBynqmfjcIKuikKAmI=
+github.com/odpf/optimus v0.4.0-rc.1.0.20221104004748-0a3eadd282ee/go.mod h1:cFyPTcuz2T6McsAgziB0Yl2LhmvoxPAuYDFXCqd87YI=
 github.com/odpf/optimus v0.4.0-rc.3 h1:KPctEkoQtgBF96nuvR53RPMKCJVpmfcjf2f+hnC6pIk=
 github.com/odpf/optimus v0.4.0-rc.3/go.mod h1:0pZ60OYsxu/zmrstrRoMDzpYBgZLa7fgF0XUthJ8zPk=
 github.com/odpf/optimus v0.4.0-rc.3.1 h1:9ykr/TI1q987eivmZNXefNTHKNof3v+RNND1XQccAqs=
