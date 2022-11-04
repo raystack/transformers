@@ -31,7 +31,7 @@ archives:
       - goos: windows
         format: zip
     files:
-      - src : ./optimus-plugin-bq2bq.yaml
+      - src : ./task/bq2bq/optimus-plugin-bq2bq.yaml
         dst : "."
         strip_parent: true
 
