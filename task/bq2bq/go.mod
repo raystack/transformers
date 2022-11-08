@@ -8,7 +8,7 @@ require (
 	github.com/googleapis/google-cloud-go-testing v0.0.0-20210719221736-1c9a4c676720
 	github.com/hashicorp/go-hclog v1.2.0
 	github.com/mitchellh/hashstructure/v2 v2.0.2
-	github.com/odpf/optimus v0.4.0-rc.3.1
+	github.com/odpf/optimus v0.4.0-rc.1.0.20221107063346-a11301241d84
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/spf13/cast v1.4.1
 	github.com/stretchr/testify v1.7.1
