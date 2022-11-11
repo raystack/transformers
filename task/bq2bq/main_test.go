@@ -143,6 +143,16 @@ func (fac *bqClientFactoryMock) New(ctx context.Context, svcAcc string) (bqiface
 
 func TestBQ2BQ(t *testing.T) {
 	ctx := context.Background()
+
+	t.Run("GetName", func(t *testing.T) {
+		t.Run("should return name bq2bq", func(t *testing.T) {
+			b2b := BQ2BQ{}
+			actualName, err := b2b.GetName(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, "bq2bq", actualName)
+		})
+	})
+
 	t.Run("CompileAssets", func(t *testing.T) {
 		t.Run("should not compile assets if load method is not replace", func(t *testing.T) {
 			compileRequest := models.CompileAssetsRequest{
@@ -248,6 +258,7 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 		})
 
 	})
+
 	t.Run("GenerateDestination", func(t *testing.T) {
 		t.Run("should properly generate a destination provided correct config inputs", func(t *testing.T) {
 			b2b := &BQ2BQ{}
