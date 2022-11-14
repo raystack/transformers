@@ -30,6 +30,11 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
+    files:
+      - src : ./task/bq2bq/optimus-plugin-bq2bq.yaml
+        dst : "."
+        strip_parent: true
+
 release:
   prerelease: auto
   draft: true

@@ -11,7 +11,7 @@ builds:
     id: "bq2bq"
     binary: "optimus-bq2bq_{{.Os}}_{{.Arch}}"
     ldflags:
-      - -s -w -X main.Version={{.Version}} -X main.Image=docker.io/odpf/optimus-task-bq2bq
+      - -s -w -X main.Version={{.Version}}
     goos:
       - linux
     goarch:

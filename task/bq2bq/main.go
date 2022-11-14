@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/bigquery"
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
 	"github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/hashstructure/v2"
@@ -34,19 +33,6 @@ var (
 
 	// Version should be injected while building
 	Version = "dev"
-	Image   = "docker.io/odpf/optimus-task-bq2bq"
-
-	validateName = survey.ComposeValidators(
-		ValidatorFactory.NewFromRegex(`^[a-zA-Z0-9_\-]+$`, `invalid name (can only contain characters A-Z (in either case), 0-9, "-" or "_")`),
-		survey.MinLength(3),
-	)
-	// a big query table can only contain the the characters [a-zA-Z0-9_].
-	// https://cloud.google.com/bigquery/docs/tables
-	validateTableName = survey.ComposeValidators(
-		ValidatorFactory.NewFromRegex(`^[a-zA-Z0-9_-]+$`, "invalid table name (can only contain characters A-Z (in either case), 0-9, hyphen(-) or underscore (_)"),
-		survey.MaxLength(1024),
-		survey.MinLength(3),
-	)
 
 	tableDestinationPatterns = regexp.MustCompile("" +
 		"(?i)(?:FROM)\\s*(?:/\\*\\s*([a-zA-Z0-9@_-]*)\\s*\\*/)?\\s+`?([\\w-]+)\\.([\\w-]+)\\.([\\w-]+)`?" +
@@ -80,7 +66,6 @@ var (
 
 	QueryFileReplaceBreakMarker = "\n--*--optimus-break-marker--*--\n"
 
-	_ models.CommandLineMod        = &BQ2BQ{}
 	_ models.DependencyResolverMod = &BQ2BQ{}
 )
 
@@ -97,177 +82,8 @@ type BQ2BQ struct {
 	logger hclog.Logger
 }
 
-func (b *BQ2BQ) PluginInfo() (*models.PluginInfoResponse, error) {
-	return &models.PluginInfoResponse{
-		Name:          Name,
-		Description:   "BigQuery to BigQuery transformation task",
-		Image:         fmt.Sprintf("%s:%s", Image, Version),
-		PluginVersion: Version,
-		PluginType:    models.PluginTypeTask,
-		PluginMods:    []models.PluginMod{models.ModTypeCLI, models.ModTypeDependencyResolver},
-	}, nil
-}
-
-func (b *BQ2BQ) GetQuestions(ctx context.Context, req models.GetQuestionsRequest) (*models.GetQuestionsResponse, error) {
-
-	// generate defaults
-	tableDefault := ""
-	datasetDefault := ""
-	projectDefault := ""
-	nameParts := strings.Split(req.JobName, ".")
-	namePartsLen := len(nameParts)
-	if namePartsLen >= 1 {
-		tableDefault = nameParts[namePartsLen-1]
-	}
-	if namePartsLen >= 2 {
-		datasetDefault = nameParts[namePartsLen-2]
-	}
-	if namePartsLen >= 3 {
-		projectDefault = nameParts[namePartsLen-3]
-	}
-
-	tQues := []models.PluginQuestion{
-		{
-			Name:    "Project",
-			Prompt:  "Project ID",
-			Help:    "Destination bigquery project ID",
-			Default: projectDefault,
-		},
-		{
-			Name:    "Dataset",
-			Prompt:  "Dataset Name",
-			Help:    "Destination bigquery dataset ID",
-			Default: datasetDefault,
-		},
-		{
-			Name:    "Table",
-			Prompt:  "Table ID",
-			Help:    "Destination bigquery table ID",
-			Default: tableDefault,
-		},
-		{
-			Name:    "LoadMethod",
-			Prompt:  "Load method to use on destination",
-			Default: LoadMethodAppend,
-			Help: `
-APPEND        - Append to existing table
-REPLACE       - Deletes existing partition and insert result of select query
-MERGE         - DML statements, BQ scripts
-REPLACE_MERGE - [Experimental] Advanced replace using merge query
-`,
-			Multiselect: []string{
-				LoadMethodAppend,
-				LoadMethodReplace,
-				LoadMethodMerge,
-				LoadMethodReplaceMerge,
-				LoadMethodReplaceAll},
-			SubQuestions: []models.PluginSubQuestion{
-				{
-					IfValue: LoadMethodReplaceMerge,
-					Questions: []models.PluginQuestion{
-						{
-							Name:   "PartitionFilter",
-							Prompt: "Partition filter expression",
-							Help: `
-Where condition over partitioned column used to delete existing partitions
-in destination table. These partitions will be replaced with sql query result.
-Leave empty for optimus to automatically figure this out although it will be 
-faster and cheaper to provide the exact condition.
-for example: DATE(event_timestamp) >= "{{ .DSTART|Date }}" AND DATE(event_timestamp) < "{{ .DEND|Date }}"`,
-						},
-					},
-				},
-			},
-		},
-	}
-	return &models.GetQuestionsResponse{
-		Questions: tQues,
-	}, nil
-}
-
-func (b *BQ2BQ) ValidateQuestion(ctx context.Context, req models.ValidateQuestionRequest) (*models.ValidateQuestionResponse, error) {
-	var err error
-	switch req.Answer.Question.Name {
-	case "Project":
-		err = validateName(req.Answer.Value)
-	case "Dataset":
-		err = validateName(req.Answer.Value)
-	case "Table":
-		err = validateTableName(req.Answer.Value)
-	case "PartitionFilter":
-		err = survey.Required(req.Answer.Value)
-	}
-	if err != nil {
-		return &models.ValidateQuestionResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
-	}
-	return &models.ValidateQuestionResponse{
-		Success: true,
-	}, nil
-}
-
-func findAnswerByName(name string, answers []models.PluginAnswer) (models.PluginAnswer, bool) {
-	for _, ans := range answers {
-		if ans.Question.Name == name {
-			return ans, true
-		}
-	}
-	return models.PluginAnswer{}, false
-}
-
-func (b *BQ2BQ) DefaultConfig(ctx context.Context, request models.DefaultConfigRequest) (*models.DefaultConfigResponse, error) {
-	proj, _ := findAnswerByName("Project", request.Answers)
-	dataset, _ := findAnswerByName("Dataset", request.Answers)
-	tab, _ := findAnswerByName("Table", request.Answers)
-	lm, _ := findAnswerByName("LoadMethod", request.Answers)
-
-	conf := []models.PluginConfig{
-		{
-			Name:  "PROJECT",
-			Value: proj.Value,
-		},
-		{
-			Name:  "TABLE",
-			Value: tab.Value,
-		},
-		{
-			Name:  "DATASET",
-			Value: dataset.Value,
-		},
-		{
-			Name:  "LOAD_METHOD",
-			Value: lm.Value,
-		},
-		{
-			Name:  "SQL_TYPE",
-			Value: "STANDARD",
-		},
-	}
-	if pf, ok := findAnswerByName("PartitionFilter", request.Answers); ok {
-		conf = append(conf, models.PluginConfig{
-			Name:  "PARTITION_FILTER",
-			Value: pf.Value,
-		})
-	}
-	return &models.DefaultConfigResponse{
-		Config: conf,
-	}, nil
-}
-
-func (b *BQ2BQ) DefaultAssets(ctx context.Context, _ models.DefaultAssetsRequest) (*models.DefaultAssetsResponse, error) {
-	return &models.DefaultAssetsResponse{
-		Assets: []models.PluginAsset{
-			{
-				Name: QueryFileName,
-				Value: `-- SQL query goes here
-
-Select * from "project.dataset.table";
-`,
-			},
-		},
-	}, nil
+func (b *BQ2BQ) GetName(ctx context.Context) (string, error) {
+	return Name, nil
 }
 
 func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsRequest) (*models.CompileAssetsResponse, error) {
