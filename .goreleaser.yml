@@ -1,6 +1,3 @@
-env:
-  - OPTIMUS_RELEASE_URL=https://github.com/odpf/optimus/releases/download/v0.4.0-rc.6/optimus_0.4.0-rc.6_linux_x86_64.tar.gz
-
 before:
   hooks:
     - make test
@@ -10,7 +7,7 @@ builds:
     id: "bq2bq"
     binary: "optimus-bq2bq_{{.Os}}_{{.Arch}}"
     ldflags:
-      - -s -w -X main.Version={{.Version}} -X main.Image=docker.io/odpf/optimus-task-bq2bq
+      - -s -w -X main.Version={{.Version}}
     goos:
       - linux
       - darwin
@@ -51,18 +48,14 @@ changelog:
       - '^chore:'
       - '^build:'
 dockers:
-  -
-    goos: linux
+  - goos: linux
     goarch: amd64
     image_templates:
-    - "docker.io/odpf/optimus-task-bq2bq:latest"
-    - "docker.io/odpf/optimus-task-bq2bq:{{ .Version }}"
-    dockerfile: ./task/bq2bq/Dockerfile
+      - "docker.io/odpf/optimus-task-bq2bq-executor:latest"
+      - "docker.io/odpf/optimus-task-bq2bq-executor:{{ .Version }}"
+    dockerfile: ./task/bq2bq/executor/Dockerfile
     extra_files:
-    - ./entrypoint.sh
-    build_flag_templates:
-      - "--build-arg=OPTIMUS_RELEASE_URL={{ .Env.OPTIMUS_RELEASE_URL }}"
-      - "--build-arg=VERSION={{ .Version }}"
+      - task/bq2bq/executor
 
 brews:
   - name: optimus-plugins-odpf
