@@ -1,8 +1,8 @@
 name: bq2bq
 description: BigQuery to BigQuery transformation task
 plugintype: task
-pluginversion: 0.2.1 # update this with expected tag before release
-image: docker.io/odpf/optimus-task-bq2bq-executor:0.2.1
+pluginversion: 0.2.0 # update this with expected tag before release
+image: docker.io/odpf/optimus-task-bq2bq-executor:0.2.0
 questions:
 - name: PROJECT
   prompt: Project ID
