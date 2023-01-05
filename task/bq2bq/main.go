@@ -14,9 +14,8 @@ import (
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
 	"github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/hashstructure/v2"
-	"github.com/odpf/optimus/compiler"
-	"github.com/odpf/optimus/models"
-	"github.com/odpf/optimus/plugin"
+	oplugin "github.com/odpf/optimus/plugin"
+	"github.com/odpf/optimus/sdk/plugin"
 	"github.com/patrickmn/go-cache"
 	"github.com/spf13/cast"
 	"go.opentelemetry.io/otel/attribute"
@@ -26,6 +25,11 @@ import (
 const (
 	ConfigKeyDstart = "DSTART"
 	ConfigKeyDend   = "DEND"
+
+	dataTypeEnv             = "env"
+	dataTypeFile            = "file"
+	destinationTypeBigquery = "bigquery"
+	scheduledAtTimeLayout   = time.RFC3339
 )
 
 var (
@@ -46,8 +50,6 @@ var (
 
 	QueryFileName = "query.sql"
 
-	// Deprecated
-	SecretName       = "TASK_BQ2BQ"
 	BqServiceAccount = "BQ_SERVICE_ACCOUNT"
 
 	TimeoutDuration = time.Second * 180
@@ -58,15 +60,12 @@ var (
 	CacheCleanUp     = time.Hour * 6
 	ErrCacheNotFound = errors.New("item not found")
 
-	LoadMethodMerge        = "MERGE"
-	LoadMethodAppend       = "APPEND"
-	LoadMethodReplace      = "REPLACE"
-	LoadMethodReplaceMerge = "REPLACE_MERGE"
-	LoadMethodReplaceAll   = "REPLACE_ALL"
+	LoadMethod        = "LOAD_METHOD"
+	LoadMethodReplace = "REPLACE"
 
 	QueryFileReplaceBreakMarker = "\n--*--optimus-break-marker--*--\n"
 
-	_ models.DependencyResolverMod = &BQ2BQ{}
+	_ plugin.DependencyResolverMod = &BQ2BQ{}
 )
 
 type ClientFactory interface {
@@ -74,22 +73,22 @@ type ClientFactory interface {
 }
 
 type BQ2BQ struct {
-	ClientFac      ClientFactory
-	mu             sync.Mutex
-	C              *cache.Cache
-	TemplateEngine models.TemplateEngine
+	ClientFac ClientFactory
+	mu        sync.Mutex
+	C         *cache.Cache
+	Compiler  *Compiler
 
 	logger hclog.Logger
 }
 
-func (b *BQ2BQ) GetName(ctx context.Context) (string, error) {
+func (*BQ2BQ) GetName(_ context.Context) (string, error) {
 	return Name, nil
 }
 
-func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsRequest) (*models.CompileAssetsResponse, error) {
-	method, ok := req.Config.Get("LOAD_METHOD")
+func (b *BQ2BQ) CompileAssets(ctx context.Context, req plugin.CompileAssetsRequest) (*plugin.CompileAssetsResponse, error) {
+	method, ok := req.Config.Get(LoadMethod)
 	if !ok || method.Value != LoadMethodReplace {
-		return &models.CompileAssetsResponse{
+		return &plugin.CompileAssetsResponse{
 			Assets: req.Assets,
 		}, nil
 	}
@@ -100,9 +99,9 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 	if req.InstanceData != nil {
 		for _, jobRunData := range req.InstanceData {
 			switch jobRunData.Type {
-			case models.InstanceDataTypeFile:
+			case dataTypeFile:
 				instanceFileMap[jobRunData.Name] = jobRunData.Value
-			case models.InstanceDataTypeEnv:
+			case dataTypeEnv:
 				instanceEnvMap[jobRunData.Name] = jobRunData.Value
 			}
 		}
@@ -132,7 +131,7 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 
 	// check if window size is greater than partition delta(a DAY), if not do nothing
 	if dend.Sub(dstart) <= partitionDelta {
-		return &models.CompileAssetsResponse{
+		return &plugin.CompileAssetsResponse{
 			Assets: req.Assets,
 		}, nil
 	}
@@ -147,23 +146,23 @@ func (b *BQ2BQ) CompileAssets(ctx context.Context, req models.CompileAssetsReque
 	// append job spec assets to list of files need to write
 	fileMap := mergeStringMap(instanceFileMap, compiledAssetMap)
 	for _, part := range destinationsPartitions {
-		instanceEnvMap[ConfigKeyDstart] = part.start.Format(models.InstanceScheduledAtTimeLayout)
-		instanceEnvMap[ConfigKeyDend] = part.end.Format(models.InstanceScheduledAtTimeLayout)
-		if compiledAssetMap, err = b.TemplateEngine.CompileFiles(fileMap, instanceEnvMap); err != nil {
-			return &models.CompileAssetsResponse{}, err
+		instanceEnvMap[ConfigKeyDstart] = part.start.Format(scheduledAtTimeLayout)
+		instanceEnvMap[ConfigKeyDend] = part.end.Format(scheduledAtTimeLayout)
+		if compiledAssetMap, err = b.Compiler.Compile(fileMap, instanceEnvMap); err != nil {
+			return &plugin.CompileAssetsResponse{}, err
 		}
 		parsedQueries = append(parsedQueries, compiledAssetMap[QueryFileName])
 	}
 	compiledAssetMap[QueryFileName] = strings.Join(parsedQueries, QueryFileReplaceBreakMarker)
 
-	taskAssets := models.PluginAssets{}
+	taskAssets := plugin.Assets{}
 	for name, val := range compiledAssetMap {
-		taskAssets = append(taskAssets, models.PluginAsset{
+		taskAssets = append(taskAssets, plugin.Asset{
 			Name:  name,
 			Value: val,
 		})
 	}
-	return &models.CompileAssetsResponse{
+	return &plugin.CompileAssetsResponse{
 		Assets: taskAssets,
 	}, nil
 }
@@ -181,7 +180,7 @@ func mergeStringMap(mp1, mp2 map[string]string) (mp3 map[string]string) {
 
 // GenerateDestination uses config details to build target table
 // this format should match with GenerateDependencies output
-func (b *BQ2BQ) GenerateDestination(ctx context.Context, request models.GenerateDestinationRequest) (*models.GenerateDestinationResponse, error) {
+func (b *BQ2BQ) GenerateDestination(ctx context.Context, request plugin.GenerateDestinationRequest) (*plugin.GenerateDestinationResponse, error) {
 	_, span := StartChildSpan(ctx, "GenerateDestination")
 	defer span.End()
 
@@ -189,9 +188,9 @@ func (b *BQ2BQ) GenerateDestination(ctx context.Context, request models.Generate
 	dataset, ok2 := request.Config.Get("DATASET")
 	tab, ok3 := request.Config.Get("TABLE")
 	if ok1 && ok2 && ok3 {
-		return &models.GenerateDestinationResponse{
+		return &plugin.GenerateDestinationResponse{
 			Destination: fmt.Sprintf("%s:%s.%s", proj.Value, dataset.Value, tab.Value),
-			Type:        models.DestinationTypeBigquery,
+			Type:        destinationTypeBigquery,
 		}, nil
 	}
 	return nil, errors.New("missing config key required to generate destination")
@@ -205,11 +204,11 @@ func (b *BQ2BQ) GenerateDestination(ctx context.Context, request models.Generate
 // case regex based table is a view & not actually a source table. Because this
 // fn should generate the actual source as dependency
 // BQ2BQ dependencies are BQ tables in format "project:dataset.table"
-func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.GenerateDependenciesRequest) (response *models.GenerateDependenciesResponse, err error) {
+func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request plugin.GenerateDependenciesRequest) (response *plugin.GenerateDependenciesResponse, err error) {
 	spanCtx, span := StartChildSpan(ctx, "GenerateDependencies")
 	defer span.End()
 
-	response = &models.GenerateDependenciesResponse{}
+	response = &plugin.GenerateDependenciesResponse{}
 	response.Dependencies = []string{}
 
 	// check if exists in cache
@@ -225,11 +224,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	accConfig, ok := request.Config.Get(BqServiceAccount)
 	if !ok || len(accConfig.Value) == 0 {
 		span.AddEvent("Required secret BQ_SERVICE_ACCOUNT not found in config")
-		// Fallback to project for getting the secret
-		svcAcc, ok = request.Project.Secret.GetByName(SecretName)
-		if !ok || len(svcAcc) == 0 {
-			return response, fmt.Errorf("secret %s required to generate dependencies not found for %s", SecretName, Name)
-		}
+		return response, fmt.Errorf("secret BQ_SERVICE_ACCOUNT required to generate dependencies not found for %s", Name)
 	} else {
 		svcAcc = accConfig.Value
 	}
@@ -239,7 +234,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 		return nil, errors.New("empty sql file")
 	}
 
-	selfTable, err := b.GenerateDestination(spanCtx, models.GenerateDestinationRequest{
+	selfTable, err := b.GenerateDestination(spanCtx, plugin.GenerateDestinationRequest{
 		Config: request.Config,
 		Assets: request.Assets,
 	})
@@ -337,7 +332,7 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request models.Generat
 	// before returning wrap dependencies with datastore type
 	dedupDependency := make(map[string]int)
 	for _, dependency := range response.Dependencies {
-		dedupDependency[fmt.Sprintf(models.DestinationURNFormat, selfTable.Type, dependency)] = 0
+		dedupDependency[fmt.Sprintf(plugin.DestinationURNFormat, selfTable.Type, dependency)] = 0
 	}
 	var dependencies []string
 	for dependency := range dedupDependency {
@@ -529,7 +524,7 @@ func removeString(s []string, match string) []string {
 	return s[:len(s)-1]
 }
 
-func (b *BQ2BQ) IsCached(request models.GenerateDependenciesRequest) (*models.GenerateDependenciesResponse, error) {
+func (b *BQ2BQ) IsCached(request plugin.GenerateDependenciesRequest) (*plugin.GenerateDependenciesResponse, error) {
 	if b.C == nil {
 		return nil, ErrCacheNotFound
 	}
@@ -541,12 +536,12 @@ func (b *BQ2BQ) IsCached(request models.GenerateDependenciesRequest) (*models.Ge
 	}
 	hashString := cast.ToString(requestHash)
 	if item, ok := b.C.Get(hashString); ok {
-		return item.(*models.GenerateDependenciesResponse), nil
+		return item.(*plugin.GenerateDependenciesResponse), nil
 	}
 	return nil, ErrCacheNotFound
 }
 
-func (b *BQ2BQ) Cache(request models.GenerateDependenciesRequest, response *models.GenerateDependenciesResponse) error {
+func (b *BQ2BQ) Cache(request plugin.GenerateDependenciesRequest, response *plugin.GenerateDependenciesResponse) error {
 	if b.C == nil {
 		return nil
 	}
@@ -567,7 +562,7 @@ func main() {
 	flag.Parse()
 
 	var cleanupFunc func()
-	plugin.Serve(func(log hclog.Logger) interface{} {
+	oplugin.Serve(func(log hclog.Logger) interface{} {
 		var err error
 		log.Info("Telemetry setup with", tracingAddr)
 		cleanupFunc, err = InitTelemetry(log, tracingAddr)
@@ -576,10 +571,10 @@ func main() {
 		}
 
 		return &BQ2BQ{
-			ClientFac:      &DefaultBQClientFactory{},
-			C:              cache.New(CacheTTL, CacheCleanUp),
-			TemplateEngine: compiler.NewGoEngine(),
-			logger:         log,
+			ClientFac: &DefaultBQClientFactory{},
+			C:         cache.New(CacheTTL, CacheCleanUp),
+			Compiler:  NewCompiler(),
+			logger:    log,
 		}
 	})
 	cleanupFunc()
