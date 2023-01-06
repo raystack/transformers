@@ -10,8 +10,8 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
-	"github.com/odpf/optimus/compiler"
 	"github.com/odpf/optimus/models"
+	"github.com/odpf/optimus/sdk/plugin"
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -155,20 +155,20 @@ func TestBQ2BQ(t *testing.T) {
 
 	t.Run("CompileAssets", func(t *testing.T) {
 		t.Run("should not compile assets if load method is not replace", func(t *testing.T) {
-			compileRequest := models.CompileAssetsRequest{
-				Config: models.PluginConfigs{
+			compileRequest := plugin.CompileAssetsRequest{
+				Config: plugin.Configs{
 					{
 						Name:  "LOAD_METHOD",
 						Value: "MERGE",
 					},
 				},
-				Assets: models.PluginAssets{
+				Assets: plugin.Assets{
 					{
 						Name:  "query.sql",
 						Value: `Select * from table where ts > "{{.DSTART}}"`,
 					},
 				},
-				InstanceData: []models.JobRunSpecData{},
+				InstanceData: []plugin.JobRunSpecData{},
 			}
 			b2b := &BQ2BQ{}
 			resp, err := b2b.CompileAssets(ctx, compileRequest)
@@ -181,28 +181,28 @@ func TestBQ2BQ(t *testing.T) {
 		t.Run("should not compile assets if load method is replace but window size is less than equal partition delta", func(t *testing.T) {
 			startTime := time.Date(2022, 5, 1, 0, 0, 0, 0, time.UTC)
 			endTime := time.Date(2022, 5, 2, 0, 0, 0, 0, time.UTC)
-			compileRequest := models.CompileAssetsRequest{
-				PluginOptions: models.PluginOptions{
+			compileRequest := plugin.CompileAssetsRequest{
+				Options: plugin.Options{
 					DryRun: false,
 				},
-				Config: models.PluginConfigs{
+				Config: plugin.Configs{
 					{
 						Name:  "LOAD_METHOD",
 						Value: "REPLACE",
 					},
 				},
-				Assets: models.PluginAssets{
+				Assets: plugin.Assets{
 					{
 						Name:  "query.sql",
 						Value: `Select * from table where ts > "{{.DSTART}}"`,
 					},
 				},
-				InstanceData: []models.JobRunSpecData{},
+				InstanceData: []plugin.JobRunSpecData{},
 				StartTime:    startTime,
 				EndTime:      endTime,
 			}
 			b2b := &BQ2BQ{
-				TemplateEngine: compiler.NewGoEngine(),
+				Compiler: NewCompiler(),
 			}
 			resp, err := b2b.CompileAssets(ctx, compileRequest)
 			assert.Nil(t, err)
@@ -214,28 +214,28 @@ func TestBQ2BQ(t *testing.T) {
 		t.Run("should compile assets if load method is replace and break the query into multiple parts", func(t *testing.T) {
 			startTime := time.Date(2021, 1, 10, 0, 0, 0, 0, time.UTC)
 			endTime := time.Date(2021, 1, 17, 0, 0, 0, 0, time.UTC)
-			compileRequest := models.CompileAssetsRequest{
-				PluginOptions: models.PluginOptions{
+			compileRequest := plugin.CompileAssetsRequest{
+				Options: plugin.Options{
 					DryRun: false,
 				},
-				Config: models.PluginConfigs{
+				Config: plugin.Configs{
 					{
 						Name:  "LOAD_METHOD",
 						Value: "REPLACE",
 					},
 				},
-				Assets: models.PluginAssets{
+				Assets: plugin.Assets{
 					{
 						Name:  "query.sql",
 						Value: `Select * from table where ts > "{{.DSTART}}"`,
 					},
 				},
-				InstanceData: []models.JobRunSpecData{},
+				InstanceData: []plugin.JobRunSpecData{},
 				StartTime:    startTime,
 				EndTime:      endTime,
 			}
 			b2b := &BQ2BQ{
-				TemplateEngine: compiler.NewGoEngine(),
+				Compiler: NewCompiler(),
 			}
 			resp, err := b2b.CompileAssets(ctx, compileRequest)
 			assert.Nil(t, err)
@@ -262,8 +262,8 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 	t.Run("GenerateDestination", func(t *testing.T) {
 		t.Run("should properly generate a destination provided correct config inputs", func(t *testing.T) {
 			b2b := &BQ2BQ{}
-			dst, err := b2b.GenerateDestination(ctx, models.GenerateDestinationRequest{
-				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+			dst, err := b2b.GenerateDestination(ctx, plugin.GenerateDestinationRequest{
+				Config: plugin.Configs{
 					{
 						Name:  "PROJECT",
 						Value: "proj",
@@ -276,16 +276,16 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  "TABLE",
 						Value: "tab",
 					},
-				}),
+				},
 			})
 			assert.Nil(t, err)
 			assert.Equal(t, "proj:datas.tab", dst.Destination)
-			assert.Equal(t, models.DestinationTypeBigquery, dst.Type)
+			assert.Equal(t, "bigquery", dst.Type)
 		})
 		t.Run("should throw an error if any on of the config is missing to generate destination", func(t *testing.T) {
 			b2b := &BQ2BQ{}
-			_, err := b2b.GenerateDestination(ctx, models.GenerateDestinationRequest{
-				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+			_, err := b2b.GenerateDestination(ctx, plugin.GenerateDestinationRequest{
+				Config: plugin.Configs{
 					{
 						Name:  "DATASET",
 						Value: "datas",
@@ -294,7 +294,7 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  "TABLE",
 						Value: "tab",
 					},
-				}),
+				},
 			})
 			assert.NotNil(t, err)
 		})
@@ -611,14 +611,14 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 	t.Run("GenerateDependencies", func(t *testing.T) {
 		t.Run("should generate dependencies using BQ APIs for select statements", func(t *testing.T) {
 			expectedDeps := []string{"bigquery://proj:dataset.table1"}
-			data := models.GenerateDependenciesRequest{
-				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+			data := plugin.GenerateDependenciesRequest{
+				Assets: plugin.Assets{
 					{
 						Name:  QueryFileName,
 						Value: "Select * from proj.dataset.table1",
 					},
-				})),
-				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+				},
+				Config: plugin.Configs{
 					{
 						Name:  "PROJECT",
 						Value: "proj",
@@ -632,14 +632,10 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Value: "tab",
 					},
 					{
-						Name:  SecretName,
-						Value: "some_secret",
-					},
-					{
 						Name:  BqServiceAccount,
 						Value: "BQ_ACCOUNT_SECRET",
 					},
-				}),
+				},
 			}
 
 			job := new(bqJob)
@@ -687,14 +683,14 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 		})
 		t.Run("should generate unique dependencies using BQ APIs for select statements", func(t *testing.T) {
 			expectedDeps := []string{"bigquery://proj:dataset.table1"}
-			data := models.GenerateDependenciesRequest{
-				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+			data := plugin.GenerateDependenciesRequest{
+				Assets: plugin.Assets{
 					{
 						Name:  QueryFileName,
 						Value: "Select * from proj.dataset.table1 t1 join proj.dataset.table1 t2 on t1.col1 = t2.col1",
 					},
-				})),
-				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+				},
+				Config: plugin.Configs{
 					{
 						Name:  "PROJECT",
 						Value: "proj",
@@ -708,14 +704,10 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Value: "tab",
 					},
 					{
-						Name:  SecretName,
-						Value: "some_secret",
-					},
-					{
 						Name:  BqServiceAccount,
 						Value: "BQ_ACCOUNT_SECRET",
 					},
-				}),
+				},
 			}
 
 			job := new(bqJob)
@@ -768,14 +760,14 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 		})
 		t.Run("should generate dependencies using BQ APIs for select statements but ignore if asked explicitly", func(t *testing.T) {
 			var expectedDeps []string
-			data := models.GenerateDependenciesRequest{
-				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+			data := plugin.GenerateDependenciesRequest{
+				Assets: plugin.Assets{
 					{
 						Name:  QueryFileName,
 						Value: "Select * from /* @ignoreupstream */ proj.dataset.table1",
 					},
-				})),
-				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+				},
+				Config: plugin.Configs{
 					{
 						Name:  "PROJECT",
 						Value: "proj",
@@ -789,14 +781,10 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Value: "tab",
 					},
 					{
-						Name:  SecretName,
-						Value: "some_secret",
-					},
-					{
 						Name:  BqServiceAccount,
 						Value: "BQ_ACCOUNT_SECRET",
 					},
-				}),
+				},
 			}
 
 			job := new(bqJob)
@@ -867,14 +855,14 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 		})
 		t.Run("should generate dependencies using BQ APIs for select statements but ignore if asked explicitly for view", func(t *testing.T) {
 			expectedDeps := []string{"bigquery://proj:dataset.table1"}
-			data := models.GenerateDependenciesRequest{
-				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+			data := plugin.GenerateDependenciesRequest{
+				Assets: plugin.Assets{
 					{
 						Name:  QueryFileName,
 						Value: "Select * from proj.dataset.table1 t1 left join /* @ignoreupstream */ proj.dataset.view1 v1 on t1.date=v1.date",
 					},
-				})),
-				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+				},
+				Config: plugin.Configs{
 					{
 						Name:  "PROJECT",
 						Value: "proj",
@@ -887,13 +875,11 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Name:  "TABLE",
 						Value: "tab",
 					},
-				}),
-				Project: models.ProjectSpec{Secret: models.ProjectSecrets{
 					{
-						Name:  SecretName,
+						Name:  BqServiceAccount,
 						Value: "some_secret",
 					},
-				}},
+				},
 			}
 
 			job := new(bqJob)
@@ -979,14 +965,14 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 		})
 		t.Run("should generate dependencies using BQ APIs for select statements then reuse cache for the next time", func(t *testing.T) {
 			expectedDeps := []string{"bigquery://proj:dataset.table1"}
-			data := models.GenerateDependenciesRequest{
-				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+			data := plugin.GenerateDependenciesRequest{
+				Assets: []plugin.Asset{
 					{
 						Name:  QueryFileName,
 						Value: "Select * from proj.dataset.table1",
 					},
-				})),
-				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+				},
+				Config: plugin.Configs{
 					{
 						Name:  "PROJECT",
 						Value: "proj",
@@ -1000,14 +986,10 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Value: "tab",
 					},
 					{
-						Name:  SecretName,
-						Value: "some_secret",
-					},
-					{
 						Name:  BqServiceAccount,
 						Value: "BQ_ACCOUNT_SECRET",
 					},
-				}),
+				},
 			}
 
 			job := new(bqJob)
@@ -1069,8 +1051,8 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 				"bigquery://proj:dataset.table1",
 				"bigquery://proj:dataset.table2",
 			}
-			data := models.GenerateDependenciesRequest{
-				Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+			data := plugin.GenerateDependenciesRequest{
+				Assets: []plugin.Asset{
 					{
 						Name: QueryFileName,
 						Value: `
@@ -1079,8 +1061,8 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 	Select * from proj.dataset.table2;
 	`,
 					},
-				})),
-				Config: models.PluginConfigs{}.FromJobSpec(models.JobSpecConfigs{
+				},
+				Config: plugin.Configs{
 					{
 						Name:  "PROJECT",
 						Value: "proj",
@@ -1094,14 +1076,10 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 						Value: "tab",
 					},
 					{
-						Name:  SecretName,
-						Value: "some_secret",
-					},
-					{
 						Name:  BqServiceAccount,
 						Value: "BQ_ACCOUNT_SECRET",
 					},
-				}),
+				},
 			}
 
 			// no tables when used with scripts
