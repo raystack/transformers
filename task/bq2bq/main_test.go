@@ -10,7 +10,6 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
-	"github.com/odpf/optimus/models"
 	"github.com/odpf/optimus/sdk/plugin"
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
@@ -475,13 +474,13 @@ Select * from table where ts > "2021-01-16T00:00:00Z"`
 
 			for _, test := range testCases {
 				t.Run(test.Name, func(t *testing.T) {
-					data := models.GenerateDependenciesRequest{
-						Assets: models.PluginAssets{}.FromJobSpec(*models.JobAssets{}.New([]models.JobSpecAsset{
+					data := plugin.GenerateDependenciesRequest{
+						Assets: plugin.Assets{
 							{
 								Name:  QueryFileName,
 								Value: test.Query,
 							},
-						})),
+						},
 					}
 
 					queryData, _ := data.Assets.Get(QueryFileName)
