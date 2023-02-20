@@ -21,6 +21,7 @@ def bq2bq(properties_file: str,
           dry_run: bool = False,
           labels: dict = {},
           output_on: str = './return.json',
+          on_finished_job = None,
           ):
 
     logger.info("Using bumblebee version: {}".format(VERSION))
@@ -37,7 +38,7 @@ def bq2bq(properties_file: str,
 
     bigquery_service = DummyService()
     if not dry_run:
-        bigquery_service = create_bigquery_service(task_config, job_labels, writer)
+        bigquery_service = create_bigquery_service(task_config, job_labels, writer, on_finished_job=on_finished_job)
 
     transformation = Transformation(bigquery_service,
                                     task_config,
