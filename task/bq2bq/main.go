@@ -443,7 +443,7 @@ func (b *BQ2BQ) FindDependenciesWithRetryableDryRun(ctx context.Context, query, 
 	for try := 1; try <= MaxBQApiRetries; try++ {
 		client, err := b.ClientFac.New(spanCtx, svcAccSecret)
 		if err != nil {
-			return nil, errors.New("failed to create bigquery client")
+			return nil, fmt.Errorf("failed to create bigquery client: %v", err)
 		}
 		deps, err := b.FindDependenciesWithDryRun(spanCtx, client, query)
 		if err != nil {
