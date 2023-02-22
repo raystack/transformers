@@ -53,7 +53,7 @@ class BaseBigqueryService(ABC):
 
 class BigqueryService(BaseBigqueryService):
 
-    def __init__(self, client, labels, writer, on_finished_job = None):
+    def __init__(self, client, labels, writer, on_job_finish = None):
         """
 
         :rtype:
@@ -61,7 +61,7 @@ class BigqueryService(BaseBigqueryService):
         self.client = client
         self.labels = labels
         self.writer = writer
-        self.on_finished_job = on_finished_job
+        self.on_job_finish = on_job_finish
 
     def execute_query(self, query):
         query_job_config = QueryJobConfig()
@@ -90,8 +90,8 @@ class BigqueryService(BaseBigqueryService):
                                                                query_job.total_bytes_billed))
         logger.info("Job labels {}".format(query_job._configuration.labels))
 
-        if self.on_finished_job is not None:
-            self.on_finished_job(query_job)
+        if self.on_job_finish is not None:
+            self.on_job_finish(query_job)
 
     def transform_load(self,
                        query,
@@ -137,8 +137,8 @@ class BigqueryService(BaseBigqueryService):
                                                                query_job.total_bytes_billed))
         logger.info("Job labels {}".format(query_job._configuration.labels))
 
-        if self.on_finished_job is not None:
-            self.on_finished_job(query_job)
+        if self.on_job_finish is not None:
+            self.on_job_finish(query_job)
 
     def create_table(self, full_table_name, schema_file,
                      partitioning_type=TimePartitioningType.DAY,
@@ -164,7 +164,7 @@ class BigqueryService(BaseBigqueryService):
         return self.client.get_table(table_ref)
 
 
-def create_bigquery_service(task_config: TaskConfigFromEnv, labels, writer, on_finished_job = None):
+def create_bigquery_service(task_config: TaskConfigFromEnv, labels, writer, on_job_finish = None):
     if writer is None:
         writer = writer.StdWriter()
 
@@ -173,7 +173,7 @@ def create_bigquery_service(task_config: TaskConfigFromEnv, labels, writer, on_f
     default_query_job_config.priority = task_config.query_priority
     default_query_job_config.allow_field_addition = task_config.allow_field_addition
     client = bigquery.Client(project=task_config.execution_project, credentials=credentials, default_query_job_config=default_query_job_config)
-    return BigqueryService(client, labels, writer, on_finished_job=on_finished_job)
+    return BigqueryService(client, labels, writer, on_job_finish=on_job_finish)
 
 
 def _get_bigquery_credentials():

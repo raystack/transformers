@@ -3,7 +3,7 @@ class BigqueryJobHandler:
         self._sum_slot_millis = 0
         self._sum_total_bytes_processed = 0
 
-    def handle_finished_job(self, job) -> None:
+    def handle_job_finish(self, job) -> None:
         self._sum_slot_millis += job.slot_millis
         self._sum_total_bytes_processed += job.total_bytes_processed
 
