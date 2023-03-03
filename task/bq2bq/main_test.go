@@ -10,7 +10,7 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
-	"github.com/odpf/optimus/sdk/plugin"
+	"github.com/goto/optimus/sdk/plugin"
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

@@ -1,4 +1,4 @@
-module github.com/odpf/transformers/task/bq2bq
+module github.com/goto/transformers/task/bq2bq
 
 go 1.18
 
@@ -6,10 +6,10 @@ require (
 	cloud.google.com/go/bigquery v1.44.0
 	github.com/AlecAivazis/survey/v2 v2.3.6
 	github.com/googleapis/google-cloud-go-testing v0.0.0-20210719221736-1c9a4c676720
+	github.com/goto/optimus v0.0.0-20230303112516-60e3dc800a4a
+	github.com/goto/optimus/sdk v0.0.0-20230303112516-60e3dc800a4a
 	github.com/hashicorp/go-hclog v1.2.0
 	github.com/mitchellh/hashstructure/v2 v2.0.2
-	github.com/odpf/optimus v0.6.0-rc.3
-	github.com/odpf/optimus/sdk v0.0.0-20230104093625-9b6abe3fe8d3
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/spf13/cast v1.4.1
 	github.com/stretchr/testify v1.8.1

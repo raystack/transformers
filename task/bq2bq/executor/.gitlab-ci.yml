@@ -20,7 +20,7 @@ publish:
   stage: publish
   script:
     - export IMAGE="de-${CI_PROJECT_NAME}"
-    - export ARTIFACTORY_IMAGE="docker.io/odpf/${IMAGE}"
+    - export ARTIFACTORY_IMAGE="docker.io/gotocompany/${IMAGE}"
     - docker build -t ${ARTIFACTORY_IMAGE}:${IMAGE_TAG} -t ${ARTIFACTORY_IMAGE}:latest .
     - docker push ${ARTIFACTORY_IMAGE}:${IMAGE_TAG}
     - docker push ${ARTIFACTORY_IMAGE}:latest

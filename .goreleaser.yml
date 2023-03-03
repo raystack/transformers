@@ -51,23 +51,23 @@ dockers:
   - goos: linux
     goarch: amd64
     image_templates:
-      - "docker.io/odpf/optimus-task-bq2bq-executor:latest"
-      - "docker.io/odpf/optimus-task-bq2bq-executor:{{ .Version }}"
+      - "docker.io/gotocompany/optimus-task-bq2bq-executor:latest"
+      - "docker.io/gotocompany/optimus-task-bq2bq-executor:{{ .Version }}"
     dockerfile: ./task/bq2bq/executor/Dockerfile
     extra_files:
       - task/bq2bq/executor
 
 brews:
-  - name: optimus-plugins-odpf
+  - name: optimus-plugins-goto
     tap:
-      owner: odpf
+      owner: goto
       name: taps
     license: "Apache 2.0"
     folder: Formula
     description: "Optimus Plugins for warehouse"
     skip_upload: auto
     dependencies:
-      - odpf/taps/optimus
+      - goto/taps/optimus
     commit_author:
       name: github-actions[bot]
       email: 41898282+github-actions[bot]@users.noreply.github.com

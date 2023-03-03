@@ -13,8 +13,8 @@ if __name__ == "__main__":
     setup(
         name="bumblebee",
         version=VERSION,
-        author="ODPF",
-        author_email="thekushsharma@gmail.com",
+        author="goto",
+        author_email="gotocompany@gmail.com",
         description="BigQuery to BigQuery Transformation client",
         packages=find_packages(),
         install_requires=requirements,
