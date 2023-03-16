@@ -12,10 +12,10 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
-	"github.com/hashicorp/go-hclog"
-	"github.com/mitchellh/hashstructure/v2"
 	oplugin "github.com/goto/optimus/plugin"
 	"github.com/goto/optimus/sdk/plugin"
+	"github.com/hashicorp/go-hclog"
+	"github.com/mitchellh/hashstructure/v2"
 	"github.com/patrickmn/go-cache"
 	"github.com/spf13/cast"
 	"go.opentelemetry.io/otel/attribute"
