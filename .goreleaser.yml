@@ -57,19 +57,19 @@ dockers:
     extra_files:
       - task/bq2bq/executor
 
-brews:
-  - name: optimus-plugins-goto
-    tap:
-      owner: goto
-      name: taps
-    license: "Apache 2.0"
-    folder: Formula
-    description: "Optimus Plugins for warehouse"
-    skip_upload: auto
-    dependencies:
-      - goto/taps/optimus
-    commit_author:
-      name: github-actions[bot]
-      email: 41898282+github-actions[bot]@users.noreply.github.com
-    install: |
-      bin.install Dir["optimus-*"]
+# brews:
+#   - name: optimus-plugins-goto
+#     tap:
+#       owner: goto
+#       name: taps
+#     license: "Apache 2.0"
+#     folder: Formula
+#     description: "Optimus Plugins for warehouse"
+#     skip_upload: auto
+#     dependencies:
+#       - goto/taps/optimus
+#     commit_author:
+#       name: github-actions[bot]
+#       email: 41898282+github-actions[bot]@users.noreply.github.com
+#     install: |
+#       bin.install Dir["optimus-*"]
