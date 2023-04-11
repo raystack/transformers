@@ -352,11 +352,9 @@ class MergeReplaceTransformation:
                                                   self.partition_column_type)
         query.print_with_logger(logger)
 
-        result = None
         if not self.dry_run:
             result = self.loader.load(query)
-
-        logger.info("finished {}".format(result.total_rows))
+            logger.info("finished {}".format(result.total_rows))
 
 
 class MultiPartitionTransformation:

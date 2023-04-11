@@ -77,7 +77,7 @@ class BigqueryService(BaseBigqueryService):
         logger.info("Job {} is initially in state {} of {} project".format(query_job.job_id, query_job.state,
                                                                            query_job.project))
         try:
-            query_job.result()
+            result = query_job.result()
         except (GoogleCloudError, Forbidden, BadRequest) as ex:
             self.writer.write("error", ex.message)
             logger.error(ex)
@@ -92,6 +92,7 @@ class BigqueryService(BaseBigqueryService):
 
         if self.on_job_finish is not None:
             self.on_job_finish(query_job)
+        return result
 
     def transform_load(self,
                        query,
@@ -124,7 +125,7 @@ class BigqueryService(BaseBigqueryService):
                                                                            query_job.project))
 
         try:
-            query_job.result()
+            result = query_job.result()
         except (GoogleCloudError, Forbidden, BadRequest) as ex:
             self.writer.write("error", ex.message)
             logger.error(ex)
@@ -139,6 +140,7 @@ class BigqueryService(BaseBigqueryService):
 
         if self.on_job_finish is not None:
             self.on_job_finish(query_job)
+        return result
 
     def create_table(self, full_table_name, schema_file,
                      partitioning_type=TimePartitioningType.DAY,
