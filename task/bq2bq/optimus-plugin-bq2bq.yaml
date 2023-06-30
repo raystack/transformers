@@ -1,8 +1,8 @@
 name: bq2bq
 description: BigQuery to BigQuery transformation task
 plugintype: task
-pluginversion: 0.3.6 # update this with expected tag before release
-image: docker.io/gotocompany/optimus-task-bq2bq-executor:0.3.6
+pluginversion: 0.3.7 # update this with expected tag before release
+image: docker.io/gotocompany/optimus-task-bq2bq-executor:0.3.7
 entrypoint:
   script: "python3 /opt/bumblebee/main.py"
 questions:

@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/bigquery v1.44.0
 	github.com/AlecAivazis/survey/v2 v2.3.6
 	github.com/googleapis/google-cloud-go-testing v0.0.0-20210719221736-1c9a4c676720
-	github.com/goto/optimus v0.6.0-rc.6.0.20230315123654-61fa43687712
+	github.com/goto/optimus v0.8.1
 	github.com/goto/optimus/sdk v0.0.0-20230313071811-2d68a9c815bf
 	github.com/hashicorp/go-hclog v1.2.0
 	github.com/mitchellh/hashstructure/v2 v2.0.2
@@ -45,7 +45,6 @@ require (
 	github.com/googleapis/gax-go/v2 v2.7.0 // indirect
 	github.com/goto/salt v0.3.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.11.3 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-getter v1.6.2 // indirect
 	github.com/hashicorp/go-plugin v1.4.3 // indirect
@@ -56,7 +55,7 @@ require (
 	github.com/jeremywohl/flatten v1.0.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
-	github.com/klauspost/compress v1.15.1 // indirect
+	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/magiconair/properties v1.8.5 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
