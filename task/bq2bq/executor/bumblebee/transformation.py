@@ -29,6 +29,7 @@ class Transformation:
                  dend: datetime,
                  execution_time: datetime,
                  dry_run: bool):
+        self.spillover_query = spillover_query
         self.bigquery_service = bigquery_service
         self.task_config = task_config
         self.sql_query = sql_query
@@ -80,15 +81,26 @@ class Transformation:
             elif bq_destination_table.partitioning_type == "DAY":
                 partition_strategy = timedelta(days=1)
 
-                # queries where source data/partition directly map with destination partitions
-                transformation = MultiPartitionTransformation(self.bigquery_service,
-                                                              self.task_config,
-                                                              self.sql_query,
-                                                              self.dstart, self.dend,
-                                                              self.dry_run,
-                                                              localised_execution_time,
-                                                              partition_strategy,
-                                                              self.task_config.concurrency)
+                if self.spillover_query:
+                    transformation = LegacySpilloverTransformation(self.bigquery_service,
+                                                                   self.task_config,
+                                                                   self.sql_query,
+                                                                   self.spillover_query,
+                                                                   self.dstart,
+                                                                   self.dend,
+                                                                   self.dry_run,
+                                                                   localised_execution_time,
+                                                                   partition_strategy)
+                else:
+                    # queries where source data/partition directly map with destination partitions
+                    transformation = MultiPartitionTransformation(self.bigquery_service,
+                                                                  self.task_config,
+                                                                  self.sql_query,
+                                                                  self.dstart, self.dend,
+                                                                  self.dry_run,
+                                                                  localised_execution_time,
+                                                                  partition_strategy,
+                                                                  self.task_config.concurrency)
             else:
                 raise Exception("unable to generate a transformation for request, unsupported partition strategy")
             transformation.transform()
@@ -439,28 +451,33 @@ class LegacySpilloverTransformation:
                  sql_query: str,
                  spillover_query: str,
                  start_time: datetime,
+                 end_time: datetime,
                  dry_run: bool,
-                 execution_time: datetime):
+                 execution_time: datetime,
+                 partition_delta: timedelta):
         self.bigquery_service = bigquery_service
         self.task_config = task_config
         self.sql_query = sql_query
         self.spillover_query = spillover_query
         self.dry_run = dry_run
         self.start_time = start_time
+        self.end_time = end_time
         self.execution_time = execution_time
+        self.partition_delta = partition_delta
 
         self.concurrency = self.task_config.concurrency
 
     def transform(self):
         datetime_list = []
-        default_datetime = [self.start_time]
-        datetime_list.extend(default_datetime)
+        # default_datetime = [self.start_time]
+        # datetime_list.extend(default_datetime)
 
         if self.task_config.use_spillover:
             spillover = SpilloverDatetimes(self.bigquery_service,
                                            self.spillover_query,
                                            self.task_config,
                                            self.start_time,
+                                           self.end_time,
                                            self.dry_run,
                                            self.execution_time)
             spillover_datetimes = spillover.collect_datetimes()
@@ -468,16 +485,25 @@ class LegacySpilloverTransformation:
 
         datetime_list = distinct_list(datetime_list)
 
+        execute_for = self.start_time
+
+        # tables are partitioned for day
+        # iterate from start to end for each partition
+        while execute_for < self.end_time:
+            execute_for += self.partition_delta
+
         tasks = []
         for partition_time in datetime_list:
             logger.info("create transformation for partition: {}".format(partition_time))
             loader = PartitionLoader(self.bigquery_service, self.task_config.destination_table,
                                      self.task_config.load_method, partition_time)
 
+            task_window = WindowFactory.create_window_with_time(partition_time, partition_time + self.partition_delta)
+
             task = PartitionTransformation(self.task_config,
                                            loader,
                                            self.sql_query,
-                                           self.window,
+                                           task_window,
                                            self.dry_run,
                                            self.execution_time)
             tasks.append(task)
