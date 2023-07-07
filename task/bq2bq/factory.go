@@ -6,15 +6,14 @@ import (
 	"fmt"
 	"sync"
 
-	"google.golang.org/api/drive/v2"
-
-	"google.golang.org/api/option"
-
 	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
 	"golang.org/x/oauth2/google"
-
+	"google.golang.org/api/drive/v2"
+	"google.golang.org/api/option"
 	storageV1 "google.golang.org/api/storage/v1"
+
+	"github.com/goto/transformers/task/bq2bq/upstream"
 )
 
 const (
@@ -54,4 +53,16 @@ func (fac *DefaultBQClientFactory) New(ctx context.Context, svcAccount string) (
 	fac.cachedClient = bqiface.AdaptClient(client)
 	fac.timesUsed = 1
 	return fac.cachedClient, nil
+}
+
+type DefaultUpstreamExtractorFactory struct {
+}
+
+func (d *DefaultUpstreamExtractorFactory) New(client bqiface.Client) (UpstreamExtractor, error) {
+	extractor, err := upstream.NewExtractor(client)
+	if err != nil {
+		return nil, fmt.Errorf("error initializing extractor: %w", err)
+	}
+
+	return extractor, nil
 }

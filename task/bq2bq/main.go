@@ -5,12 +5,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
-	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
 	oplugin "github.com/goto/optimus/plugin"
 	"github.com/goto/optimus/sdk/plugin"
@@ -18,8 +16,8 @@ import (
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/patrickmn/go-cache"
 	"github.com/spf13/cast"
-	"go.opentelemetry.io/otel/attribute"
-	"golang.org/x/sync/errgroup"
+
+	"github.com/goto/transformers/task/bq2bq/upstream"
 )
 
 const (
@@ -37,16 +35,6 @@ var (
 
 	// Version should be injected while building
 	Version = "dev"
-
-	tableDestinationPatterns = regexp.MustCompile("" +
-		"(?i)(?:FROM)\\s*(?:/\\*\\s*([a-zA-Z0-9@_-]*)\\s*\\*/)?\\s+`?([\\w-]+)\\.([\\w-]+)\\.([\\w-]+)`?" +
-		"|" +
-		"(?i)(?:JOIN)\\s*(?:/\\*\\s*([a-zA-Z0-9@_-]*)\\s*\\*/)?\\s+`?([\\w-]+)\\.([\\w-]+)\\.([\\w-]+)`?" +
-		"|" +
-		"(?i)(?:WITH)\\s*(?:/\\*\\s*([a-zA-Z0-9@_-]*)\\s*\\*/)?\\s+`?([\\w-]+)\\.([\\w-]+)\\.([\\w-]+)`?\\s+(?:AS)")
-
-	queryCommentPatterns = regexp.MustCompile("(--.*)|(((/\\*)+?[\\w\\W]*?(\\*/)+))")
-	helperPattern        = regexp.MustCompile("(\\/\\*\\s*(@[a-zA-Z0-9_-]+)\\s*\\*\\/)")
 
 	QueryFileName = "query.sql"
 
@@ -72,11 +60,20 @@ type ClientFactory interface {
 	New(ctx context.Context, svcAccount string) (bqiface.Client, error)
 }
 
+type UpstreamExtractor interface {
+	ExtractUpstreams(ctx context.Context, query string, resourcesToIgnore []upstream.Resource) ([]*upstream.Upstream, error)
+}
+
+type ExtractorFactory interface {
+	New(client bqiface.Client) (UpstreamExtractor, error)
+}
+
 type BQ2BQ struct {
-	ClientFac ClientFactory
-	mu        sync.Mutex
-	C         *cache.Cache
-	Compiler  *Compiler
+	ClientFac    ClientFactory
+	ExtractorFac ExtractorFactory
+	mu           sync.Mutex
+	C            *cache.Cache
+	Compiler     *Compiler
 
 	logger hclog.Logger
 }
@@ -242,210 +239,44 @@ func (b *BQ2BQ) GenerateDependencies(ctx context.Context, request plugin.Generat
 		return response, err
 	}
 
-	// first parse sql statement to find dependencies and ignored tables
-	parsedDependencies, ignoredDependencies, err := b.FindDependenciesWithRegex(spanCtx, queryData.Value, selfTable.Destination)
+	destinationResource, err := b.destinationToResource(selfTable)
 	if err != nil {
-		return response, err
+		return response, fmt.Errorf("error getting destination resource: %w", err)
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, TimeoutDuration)
-	defer cancel()
-
-	// try to resolve referenced tables for ignoredDependencies
-	var ignoredDependenciesReferencedTables []string
-	for _, tableName := range ignoredDependencies {
-		// ignore the tables with :
-		if strings.Contains(tableName, ":") { // project:dataset.table
-			continue
-		}
-		// find referenced tables and add it to ignoredDependenciesReferencedTables
-		fakeQuery := fmt.Sprintf(FakeSelectStmt, tableName)
-		deps, err := b.FindDependenciesWithRetryableDryRun(timeoutCtx, fakeQuery, svcAcc)
-		if err != nil {
-			return response, err
-		}
-		ignoredDependenciesReferencedTables = append(ignoredDependenciesReferencedTables, deps...)
-	}
-	ignoredDependencies = append(ignoredDependencies, ignoredDependenciesReferencedTables...)
-
-	// try to resolve referenced tables directly from BQ APIs
-	response.Dependencies, err = b.FindDependenciesWithRetryableDryRun(spanCtx, queryData.Value, svcAcc)
+	upstreams, err := b.extractUpstreams(spanCtx, queryData.Value, svcAcc, []upstream.Resource{destinationResource})
 	if err != nil {
-		// SQL query with reference to destination table such as DML and self joins will have dependency
-		// cycle on dry run since the table might not be available yet. We check the error from BQ
-		// to ignore if the error message contains destination table not found.
-		if !strings.Contains(err.Error(), fmt.Sprintf("Not found: Table %s was not found", selfTable.Destination)) {
-			return response, err
-		}
+		return response, fmt.Errorf("error extracting upstreams: %w", err)
 	}
 
-	if len(response.Dependencies) == 0 {
-		span.AddEvent("Unable to get dependencies, query tables on regex")
-		// stmt could be BQ script, find table names using regex and create
-		// fake Select STMTs to find actual referenced tables
+	flattenedUpstreams := upstream.FlattenUpstreams(upstreams)
+	formattedUpstreams := b.formatUpstreams(flattenedUpstreams, func(r upstream.Resource) string {
+		name := fmt.Sprintf("%s:%s.%s", r.Project, r.Dataset, r.Name)
+		return fmt.Sprintf(plugin.DestinationURNFormat, selfTable.Type, name)
+	})
 
-		resultChan := make(chan []string)
-		eg, apiCtx := errgroup.WithContext(spanCtx) // it will stop executing further after first error
-		for _, tableName := range parsedDependencies {
-			fakeQuery := fmt.Sprintf(FakeSelectStmt, tableName)
-			// find dependencies in parallel
-			eg.Go(func() error {
-				//prepare dummy query
-				deps, err := b.FindDependenciesWithRetryableDryRun(spanCtx, fakeQuery, svcAcc)
-				if err != nil {
-					return err
-				}
-				select {
-				case resultChan <- deps:
-					return nil
-				// requests to be cancelled
-				case <-apiCtx.Done():
-					return apiCtx.Err()
-				}
-			})
-		}
-
-		go func() {
-			// if all done, stop waiting for results
-			eg.Wait()
-			close(resultChan)
-		}()
-
-		// accumulate results
-		for dep := range resultChan {
-			response.Dependencies = append(response.Dependencies, dep...)
-		}
-
-		// check if wait was finished because of an error
-		if err := eg.Wait(); err != nil {
-			return response, err
-		}
-	}
-
-	response.Dependencies = removeString(response.Dependencies, selfTable.Destination)
-
-	// before returning remove ignored tables
-	for _, ignored := range ignoredDependencies {
-		response.Dependencies = removeString(response.Dependencies, ignored)
-	}
-
-	// before returning wrap dependencies with datastore type
-	dedupDependency := make(map[string]int)
-	for _, dependency := range response.Dependencies {
-		dedupDependency[fmt.Sprintf(plugin.DestinationURNFormat, selfTable.Type, dependency)] = 0
-	}
-	var dependencies []string
-	for dependency := range dedupDependency {
-		dependencies = append(dependencies, dependency)
-	}
-	response.Dependencies = dependencies
+	response.Dependencies = formattedUpstreams
 
 	b.Cache(request, response)
 	return response, nil
 }
 
-// FindDependenciesWithRegex look for table patterns in SQL query to find
-// source tables.
-// Task destination is required to avoid cycles
-//
-// we look for certain patterns in the query source code
-// in particular, we look for the following constructs
-// * from {table} ...
-// * join {table} ...
-// * with {table} as ...
-// where {table} => {project}.{dataset}.{name}
-// for `from` and `join` we build a optimus.Table object and
-// store it's name in a set. For `with` query we store the name in
-// a separate set called `pseudoTables` that is used for filtering
-// out tables from `from`/`join` matches.
-// the algorithm roughly locates all from/join clauses, filters it
-// in case it's a known pseudo table (since with queries come before
-// either `from` or `join` queries, so they're match first).
-// notice that only clauses that end in "." delimited sequences
-// are matched (for instance: foo.bar.baz, but not foo.bar).
-// This helps weed out pseudo tables since most of the time
-// they're a single sequence of characters. But on the other hand
-// this also means that otherwise valid reference to "dataset.table"
-// will not be recognised.
-func (b *BQ2BQ) FindDependenciesWithRegex(ctx context.Context, queryString string, destination string) ([]string, []string, error) {
-	_, span := StartChildSpan(ctx, "FindDependenciesWithRegex")
-	defer span.End()
-
-	tablesFound := make(map[string]bool)
-	pseudoTables := make(map[string]bool)
-	var tablesIgnored []string
-
-	// we mark destination as a pseudo table to avoid a dependency
-	// cycle. This is for supporting DML queries that may also refer
-	// to themselves.
-
-	pseudoTables[destination] = true
-
-	// remove comments from query
-	matches := queryCommentPatterns.FindAllStringSubmatch(queryString, -1)
-	for _, match := range matches {
-		helperToken := match[2]
-
-		// check if its a helper
-		if helperPattern.MatchString(helperToken) {
-			continue
-		}
-
-		// replace full match
-		queryString = strings.ReplaceAll(queryString, match[0], " ")
-	}
-
-	matches = tableDestinationPatterns.FindAllStringSubmatch(queryString, -1)
-	for _, match := range matches {
-		var projectIdx, datasetIdx, nameIdx, ignoreUpstreamIdx int
-		tokens := strings.Fields(match[0])
-		clause := strings.ToLower(tokens[0])
-
-		switch clause {
-		case "from":
-			ignoreUpstreamIdx, projectIdx, datasetIdx, nameIdx = 1, 2, 3, 4
-		case "join":
-			ignoreUpstreamIdx, projectIdx, datasetIdx, nameIdx = 5, 6, 7, 8
-		case "with":
-			ignoreUpstreamIdx, projectIdx, datasetIdx, nameIdx = 9, 10, 11, 12
-		}
-
-		tableName := createTableName(match[projectIdx], match[datasetIdx], match[nameIdx])
-
-		// if upstream is ignored, don't treat it as source
-		if strings.TrimSpace(match[ignoreUpstreamIdx]) == "@ignoreupstream" {
-			// make sure to handle both the conventions
-			tablesIgnored = append(tablesIgnored, tableName)
-			tablesIgnored = append(tablesIgnored, createTableNameWithColon(match[projectIdx], match[datasetIdx], match[nameIdx]))
-			continue
-		}
-
-		if clause == "with" {
-			pseudoTables[tableName] = true
-		} else {
-			tablesFound[tableName] = true
-		}
-	}
-	var tables []string
-	for table := range tablesFound {
-		if pseudoTables[table] {
-			continue
-		}
-		tables = append(tables, table)
-	}
-	return tables, tablesIgnored, nil
-}
-
-func (b *BQ2BQ) FindDependenciesWithRetryableDryRun(ctx context.Context, query, svcAccSecret string) ([]string, error) {
-	spanCtx, span := StartChildSpan(ctx, "FindDependenciesWithRetryableDryRun")
+func (b *BQ2BQ) extractUpstreams(ctx context.Context, query, svcAccSecret string, resourcesToIgnore []upstream.Resource) ([]*upstream.Upstream, error) {
+	spanCtx, span := StartChildSpan(ctx, "extractUpstreams")
 	defer span.End()
 
 	for try := 1; try <= MaxBQApiRetries; try++ {
 		client, err := b.ClientFac.New(spanCtx, svcAccSecret)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create bigquery client: %v", err)
+			return nil, fmt.Errorf("error creating bigquery client: %w", err)
 		}
-		deps, err := b.FindDependenciesWithDryRun(spanCtx, client, query)
+
+		extractor, err := b.ExtractorFac.New(client)
+		if err != nil {
+			return nil, fmt.Errorf("error initializing upstream extractor: %w", err)
+		}
+
+		upstreams, err := extractor.ExtractUpstreams(spanCtx, query, resourcesToIgnore)
 		if err != nil {
 			if strings.Contains(err.Error(), "net/http: TLS handshake timeout") ||
 				strings.Contains(err.Error(), "unexpected EOF") ||
@@ -455,73 +286,41 @@ func (b *BQ2BQ) FindDependenciesWithRetryableDryRun(ctx context.Context, query, 
 				continue
 			}
 
-			return nil, err
+			return nil, fmt.Errorf("error extracting upstreams: %w", err)
 		}
-		return deps, nil
+
+		return upstreams, nil
 	}
 	return nil, errors.New("bigquery api retries exhausted")
 }
 
-func (b *BQ2BQ) FindDependenciesWithDryRun(ctx context.Context, client bqiface.Client, query string) ([]string, error) {
-	spanCtx, span := StartChildSpan(ctx, "FindDependenciesWithDryRun")
-	defer span.End()
-	span.SetAttributes(attribute.String("kind", "client"), attribute.String("client.type", "bigquery"))
-
-	q := client.Query(query)
-	q.SetQueryConfig(bqiface.QueryConfig{
-		QueryConfig: bigquery.QueryConfig{
-			Q:      query,
-			DryRun: true,
-		},
-	})
-
-	job, err := q.Run(spanCtx)
-	if err != nil {
-		return nil, fmt.Errorf("query run: %w", err)
-	}
-	// Dry run is not asynchronous, so get the latest status and statistics.
-	status := job.LastStatus()
-	if err := status.Err(); err != nil {
-		return nil, fmt.Errorf("query status: %w", err)
+func (b *BQ2BQ) destinationToResource(destination *plugin.GenerateDestinationResponse) (upstream.Resource, error) {
+	splitDestination := strings.Split(destination.Destination, ":")
+	if len(splitDestination) != 2 {
+		return upstream.Resource{}, fmt.Errorf("cannot get project from destination [%s]", destination.Destination)
 	}
 
-	details, ok := status.Statistics.Details.(*bigquery.QueryStatistics)
-	if !ok {
-		return nil, errors.New("failed to cast to Query Statistics")
+	project, datasetTable := splitDestination[0], splitDestination[1]
+
+	splitDataset := strings.Split(datasetTable, ".")
+	if len(splitDataset) != 2 {
+		return upstream.Resource{}, fmt.Errorf("cannot get dataset and table from [%s]", datasetTable)
 	}
 
-	tables := []string{}
-	for _, tab := range details.ReferencedTables {
-		tables = append(tables, tab.FullyQualifiedName())
-	}
-	return tables, nil
+	return upstream.Resource{
+		Project: project,
+		Dataset: splitDataset[0],
+		Name:    splitDataset[1],
+	}, nil
 }
 
-func createTableName(proj, dataset, table string) string {
-	return fmt.Sprintf("%s.%s.%s", proj, dataset, table)
-}
+func (b *BQ2BQ) formatUpstreams(upstreams []upstream.Resource, fn func(r upstream.Resource) string) []string {
+	var output []string
+	for _, u := range upstreams {
+		output = append(output, fn(u))
+	}
 
-func createTableNameWithColon(proj, dataset, table string) string {
-	return fmt.Sprintf("%s:%s.%s", proj, dataset, table)
-}
-
-func removeString(s []string, match string) []string {
-	if len(s) == 0 {
-		return s
-	}
-	idx := -1
-	for i, tab := range s {
-		if tab == match {
-			idx = i
-			break
-		}
-	}
-	// not found
-	if idx < 0 {
-		return s
-	}
-	s[len(s)-1], s[idx] = s[idx], s[len(s)-1]
-	return s[:len(s)-1]
+	return output
 }
 
 func (b *BQ2BQ) IsCached(request plugin.GenerateDependenciesRequest) (*plugin.GenerateDependenciesResponse, error) {
@@ -571,10 +370,11 @@ func main() {
 		}
 
 		return &BQ2BQ{
-			ClientFac: &DefaultBQClientFactory{},
-			C:         cache.New(CacheTTL, CacheCleanUp),
-			Compiler:  NewCompiler(),
-			logger:    log,
+			ClientFac:    &DefaultBQClientFactory{},
+			ExtractorFac: &DefaultUpstreamExtractorFactory{},
+			C:            cache.New(CacheTTL, CacheCleanUp),
+			Compiler:     NewCompiler(),
+			logger:       log,
 		}
 	})
 	cleanupFunc()

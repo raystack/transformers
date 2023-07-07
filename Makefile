@@ -31,6 +31,7 @@ fmt: ## Run FMT
 test: ## Run tests
 	@for target in ${TASKS}; do \
 	  cd ${ROOT}/task/$${target}; go vet . ; go test . -race; \
+	  cd ${ROOT}/task/$${target}; go vet . ; go test ./upstream --cover -race; \
 	done
 	@for target in ${HOOKS}; do \
 	  cd ${ROOT}/hook/$${target}; go vet . ; go test . -race; \
