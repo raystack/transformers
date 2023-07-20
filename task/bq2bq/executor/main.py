@@ -26,6 +26,7 @@ if __name__ == "__main__":
         app_config.job_labels,
         app_config.xcom_path,
         on_job_finish = job_handler.handle_job_finish,
+        on_job_cancelled = job_handler.handle_job_cancelled,
     )
 
     xcom_data['monitoring'] = {
